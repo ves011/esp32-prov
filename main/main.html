@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" type="image/x-icon" href="/favicon.ico">
+<style>
+body {font-family: Arial;}
+table.alternate tr:nth-child(odd) {background-color:  #ffffff;}
+table.alternate tr:nth-child(even) {background-color: #c0c0c0;}
+button {width:120px}
+html.wait, html.wait * { cursor: wait !important; }
+</style>
+<script>
+var c_connected = false;
+var websocket  = null;
+var xhttp;
+function openTab(evt, section) 
+	{
+	var i, tabcontent, tablinks;
+	tabcontent = document.getElementsByClassName("tabcontent");
+ 	for (i = 0; i < tabcontent.length; i++) {tabcontent[i].style.display = "none";}
+	tablinks = document.getElementsByClassName("tablinks");
+	for (i = 0; i < tablinks.length; i++) {tablinks[i].className = tablinks[i].className.replace(" active", "");}
+	document.getElementById(section).style.display = "block";
+	evt.currentTarget.className += " active";
+	}
+function rfresh() {
+	location.reload();
+	//document.getElementById("genconf").method = "POST";
+	//document.getElementById("genconf").action = '/';
+	return true;
+	}
+function setBoot()
+	{
+	var pName = document.getElementById("parts").value;
+	ws_send("setBoot" + '\1' + pName + '\1');
+	}
+function erase()
+	{
+	var pName = document.getElementById("parts").value;
+	ws_send("erase" + '\1query\1' + pName + '\1');
+	}
+function update(fName) {
+	if(fName == "reboot")
+		{
+		document.getElementById(fName).method = "POST";
+		document.getElementById(fName)[0].value = "1";
+		document.getElementById(fName).action = "/a";
+		}
+	//else if(fName == "setboot")
+	//	{
+	//	document.getElementById(fName).method = "POST";
+	//	document.getElementById(fName)[0].value = document.getElementById("parts").value;
+	//	document.getElementById(fName).action = "/sb";
+	//	}
+	else if(fName == "genconf")
+		{
+		document.getElementById(fName).method = "POST";
+		document.getElementById(fName).action = "/a";
+		}
+	return true;
+	}
+function ws_send(msg)
+	{
+	if(websocket.readyState == WebSocket.OPEN)
+		websocket.send(msg);
+	else
+		alert("not connected to websocket server");
+	}
+function ws_receive(msg)
+	{
+	console.log('RECEIVED:', msg.data);
+	var params = msg.data.split('\x01');
+	if(params[0] == "setBoot" && params.length == 3)
+		{
+		//setBoot\0x01resutlt(0|1)\0x01partName\0x01
+		if(params[1] != "ESP_OK")
+			alert("Cannot set boot flag to " + params[2] + "\n" + params[1]);
+		}
+	else if(params[0] == "refresh")
+		{
+		if(params.length == 3)
+			loc = window.location.origin + "/?" + params[1] + "=" + params[2];
+		else
+			loc = window.location.origin;
+		window.location = loc;
+		}
+	else if(params[0] == "ustatus")
+		{
+		if(params[1] == "progress")
+			document.getElementById("ustatus").innerHTML = "flashing... " + params[2];
+		else if(params[1] == "error")
+			{
+			if(upload_inp == 1)
+				xhttp.abort();
+			}
+		}
+	else if(params[0] == "dstatus")
+		{
+		//document.getElementById("dump").style.cursor = "default";
+		//document.body.style.cursor = "default";
+		document.querySelector("html").classList.remove("wait");
+		if(params[1] == "progress")
+			alert(params[2]);
+		}
+	else if(params[0] == "erasestatus")
+		{
+		if(params[1] == "error")
+			alert(params[2]);
+		else if(params[1] == "confirm")
+			{
+			var pName = document.getElementById("parts").value;
+			if(confirm('Erasing ' + pName + ' all data will be lost!\nPress "OK" to continue') == true)
+				ws_send("erase" + '\1confirmok\1' + pName + '\1');
+			}
+		else if(params[1] == "progress")
+			alert(params[2]);
+		}
+	}
+function setpath() 
+	{
+    var default_path = document.getElementById("newfile").files[0].name;
+    //document.getElementById("filepath").value = default_path;
+	}
+function upload() 
+	{
+	//var filePath = document.getElementById("newfile").files[0].name;
+    var upload_path = "/upload/" + document.getElementById("parts").value; //filePath;
+    var fileInput = document.getElementById("newfile").files;
+    var file = fileInput[0];
+
+	xhttp = new XMLHttpRequest();
+	xhttp.onreadystatechange = function() 
+		{
+		if (xhttp.readyState == 4) 
+			{
+			upload_inp = 0;
+			if (xhttp.status == 200) 
+				window.location.href = location.origin + "?tab=part";
+			else if (xhttp.status == 303) 
+				alert(xhttp.responseText);
+			else if (xhttp.status == 302) 
+				{ 
+				xhttp.open("POST", upload_path, true);
+				xhttp.send(file);
+				}
+			else if (xhttp.status == 0) 
+				{
+				alert("Server closed the connection abruptly!");
+				window.location.href = location.origin + "?tab=part";
+				} 
+			else 
+				{
+				alert(xhttp.status + " Error!\n" + xhttp.responseText);
+				window.location.href = location.origin + "?tab=part";
+				}
+			}
+		};
+	var u = upload_path  + ".test";
+	xhttp.open("POST", upload_path + "." + file.size, true);
+	xhttp.send(null);
+	}
+function dump()
+	{
+	// Create a link and set the URL using `createObjectURL`
+	//document.getElementById("dump").style.cursor = "wait";
+	//document.body.style.cursor = "wait";
+	document.querySelector("html").classList.add("wait");
+	var name = document.getElementById("parts").value;
+	//const file = new File([""], name + ".bin");
+  	const link = document.createElement("a");
+	link.style.display = "none";
+	link.href = location.origin + "/download/" + name; 
+	//link.href = URL.createObjectURL(file);
+
+	link.download = name + ".bin";
+
+  // It needs to be added to the DOM so it can be clicked
+  	document.body.appendChild(link);
+  	link.click();
+
+	// To make this work on Firefox we need to wait
+	// a little while before removing it.
+	setTimeout(() => {
+    	URL.revokeObjectURL(link.href);
+    	link.parentNode.removeChild(link);
+  		}, 100);
+	}
+</script>
+</head>
+<body>	
+<div id="Partitions">
+	<h1>Partition Table</h1>
+	<h6>(b) - boot partition<br>(*) - running partition</h6>
+	<table class="alternate" style="text-align:left;">
+		<tr>
+    		<th style="width: 100px;">name</th>
+    		<th style="width: 70px;">type</th>
+    		<th style="width: 70px;">subtype</th>
+    		<th style="width: 100px; text-align:center;">offset</th>
+    		<th style="width: 100px; text-align:center;">size</th>
+    	</tr>
+  		<tr><td>insPart</td></tr>
+  		<!--
+  			<tr style="text-align:center;">
+  			<td><a href="nvs_editor.html">nvs</a></td>
+  			<td>data</td>
+  			<td>nvs</td>
+  			<td style="text-align:right;">0x9000</td>
+  			<td style="text-align:right;">0x4000</td>
+  		</tr>
+  		<tr style="text-align:center;">
+  			<td>otadata(*)</td>
+  			<td>data</td>
+  			<td>ota</td>
+  			<td style="text-align:right;">0xd000</td>
+  			<td style="text-align:right;">0x2000</td>
+  		</tr>
+  		 -->
+  	</table>
+  	<br>
+  	<table>
+  		<tr>
+  			<td style="width: 150px;"><label>Select partition</label></td>
+  			<td style="width: 400px;">
+  			<select name="parts" id="parts">
+  				<option value="1">insertOptions</option>
+				<!--<option value="2">p1</option>
+				<option value="3">p2</option>-->
+  			</select><label style="font-size: 10px;">(Only partitions which can be updated)</label>
+			</td>
+  		</tr>
+  		<tr><td>
+			<button type="submit" onclick="javascript:setBoot()">Set Boot</button>
+  		</td></tr>
+  		<tr>
+  		<td><button id="upload" type="button" onclick="upload()">Flash</button></td>
+  		<td><input id="newfile" type="file" onchange="setpath()" style="width:100%;"></td>
+		<td id="ustatus"></td>
+  		</tr>
+  		<tr>
+  		<td>
+  			<!--<button><a style="text-decoration: none; color: inherit;" href="" download>Dump</a></button>-->
+			<button id="dump" onclick="dump()">Dump</button>
+  		</td>
+  		</tr>
+		<tr>
+  		<td>
+  			<!--<button><a style="text-decoration: none; color: inherit;" href="" download>Dump</a></button>-->
+			<button id="erase" onclick="erase()">Erase</button>
+  		</td>
+  		</tr>
+  	</table>
+</div>
+<br><br>
+<form id=reboot>
+<input type="hidden" name="reboot" id="reboot" value="">
+<button type="submit" onclick="javascript:update('reboot')">Reboot</button>
+</form></body></html>

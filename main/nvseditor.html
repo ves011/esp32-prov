@@ -1,0 +1,593 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" type="image/x-icon" href="/favicon.ico">
+<style>
+body {font-family: Arial;}
+button {width:120px}
+.shsign {text-align: center; font-weight: bold; width: 40px;}
+table {border-collapse: collapse;}
+table.fixed {table-layout:fixed; width:1160px;}
+table.fixed td {overflow:hidden;}
+table.fixed td:nth-of-type(1) {width:40px; text-align: center;}
+table.fixed td:nth-of-type(2) {width:140px; text-align: left;}
+table.fixed td:nth-of-type(3) {width:140px; text-align: left;}
+table.fixed td:nth-of-type(4) {width:80px;text-align: right;}
+table.fixed td:nth-of-type(5) {width:730px;}
+table.fixed td:nth-of-type(6) {width:30px;}
+
+tr.strong {border-bottom: 3px solid black; background: #88f7ed;}
+tr {border-bottom: 1px solid black;}
+* {box-sizing: border-box;}
+.columna {float: left; width: 400px; padding: 10px;}
+.columnb {float: left; width: 700px; padding: 10px;}
+/* Clear floats after the columns */
+.row:after {content: ""; display: table; clear: both;}
+
+</style>
+<script>
+var c_connected = false;
+var websocket  = null;
+var updid = [];
+const chunk_size = 512;
+function ws_send(msg)
+	{
+	if(websocket.readyState == WebSocket.OPEN)
+		websocket.send(msg);
+	else
+		alert("not connected to websocket server");
+	}
+function ws_receive(msg)
+	{
+	console.log('RECEIVED:', msg.data);
+    var params = msg.data.split('\x01');
+    if(params[0] == "createkey" && params.length >= 3)
+        {
+        //createkey\0x01resutlt\0x01message\0x01
+        alert(params[1] + "\n" + params[2]);
+        if(params[1] == "ESP_OK")
+            location.reload();
+        }
+    else if(params[0] == "send val" && params.length == 2)
+        {
+        for(i = 0; i < updid.length; i++)
+            {
+            if(updid[i].id == params[1])
+                {
+                var len = document.getElementById(params[1] + "-len").innerHTML;
+                type = document.getElementById(params[1] + "-type").attributes.name.value;
+                if(type < 33) //numeric value
+                    {
+                    //update val -> token
+                    //id of the element
+                    // current chunk number
+                    const pre = (new TextEncoder()).encode("update val" + "\1" + params[1] + "\1" + "1" + "\1");
+                    const buf = new ArrayBuffer(pre.length + 8);
+                    const view = new DataView(buf);
+                    for(i = 0; i < pre.length; i++)
+                        view.setUint8(i, pre[i]);
+                    var v = BigInt(document.getElementById(params[1]).value);
+                    view.setBigUint64(pre.length, v);
+                    ws_send(buf);
+                    }
+                break;
+                }
+            }
+        }
+    else if(params[0] == "update key" && params.length >= 5)
+        {
+        if(params[3] == 0) //success
+            document.getElementById(params[1]).style.color = "black";
+        else
+            alert('Error updating key "' + params[2] + '"' + '\n' + params[4]);
+        }
+	}
+function pushupdate(id)
+    {
+    for(i = 0; i < updid.length; i++)
+        {
+        if(updid[i].id == id)
+            break;
+        }
+    if(i == updid.length)
+        {
+        var key = {id: id, state: 0, nr_chunks: 0, sent_chunks: 0};
+        updid.push(key);
+        }
+    }
+function commitc()
+    {
+    for(i = 0; i < updid.length; i++)
+        {
+        type = document.getElementById(updid[i].id + "-type").attributes.name.value;
+        len = document.getElementById(updid[i].id + "-len").innerHTML;
+        var nr_chunks = len >> 9;
+        if(nr_chunks == 0) 
+            nr_chunks++;
+        updid[i].nr_chunks = nr_chunks;
+        var msg = "update req\1" + updid[i].id + "\1" + len +"\1" + updid[i].nr_chunks + "\1";
+        ws_send(msg);
+        }
+    }
+function pageload()
+    {
+    var inp = document.getElementsByClassName("hed");
+
+    for (i = 0; i < inp.length; i++)
+        {
+        inp[i].addEventListener("beforeinput", handleKeysHex, false);
+        inp[i].addEventListener("keydown", handleDelete, false);
+        }
+    inp = document.querySelectorAll(".ued, .ied, .sed");
+    for (i = 0; i < inp.length; i++)
+        {
+        inp[i].addEventListener("beforeinput", handleKeysDec, false);
+        if(inp[i].className == "sed")
+            inp[i].addEventListener("input", updatelen, false);
+        }
+    var cb = document.getElementsByClassName("sel2del");
+    for (i = 0; i < cb.length; i++)
+        {
+        cb[i].addEventListener("click", setSel);
+        }
+    cb = document.getElementsByClassName("sel2delns");
+    for (i = 0; i < cb.length; i++)
+        {
+        cb[i].addEventListener("click", setSel);
+        }
+
+    const wsUri = window.location.origin + "/ws";
+	websocket = new WebSocket(wsUri);
+	websocket.addEventListener("open", () => {console.log("CONNECTED"); c_connected = true;});
+	websocket.addEventListener("close", (event) => {console.log("DISCONNECTED: " + event.data); c_connected = false;});
+	websocket.onmessage = (msg) => {ws_receive(msg);};
+
+    }
+function setSel(e)
+    {
+    const name = this.name;
+    const ch = this.checked;
+    var cb = document.getElementsByName(name);
+    if(this.className == "sel2delns")
+        {
+        for (i = 0; i < cb.length; i++)
+            cb[i].checked = ch;
+        }
+    else if(this.className == "sel2del")
+        {
+        cb = document.getElementsByClassName("sel2delns");
+        for (i = 0; i < cb.length; i++)
+            {
+            if(cb[i].name == name)
+                {
+                var pcb = cb[i];
+                break;
+                }
+            }
+        cb = document.getElementsByClassName("sel2del");
+        for (i = 0; i < cb.length; i++)
+            {
+            if(cb[i].name == name && cb[i].checked != ch)
+                {
+                pcb.indeterminate = true;
+                break;
+                }
+            }
+        if(i >= cb.length)
+            {
+            pcb.indeterminate = false;
+            pcb.checked = ch;
+            }
+        }
+    }
+function handleDelete(e) 
+    {
+    if (e.key == "Delete" || e.key == 'Backspace') 
+        {
+        var nod = false;
+        e.stopPropagation();
+        e.preventDefault();
+        var target = e.target;
+        var start = target.selectionStart;
+        var end = target.selectionEnd;
+        var chs = target.value[start];
+        var che = target.value[start];
+        if(start > 0)
+            {
+            if (e.key == "Delete")
+                {
+                if(start > target.value.length - 1)
+                    return;
+                while (start > 0 && start < target.value.length - 1 && "\n\t |".indexOf(target.value.substring(start, start + 1)) != -1)
+                    start++;
+                target.value = target.value.substring(0, start) + "0" + target.value.substring(start + 1);
+                mod = true;
+                }
+            else
+                {
+                while (start > 0 && "\n\t -".indexOf(target.value.substring(start - 1, start)) != -1)
+                    start--;
+                target.value = target.value.substring(0, start - 1) + "0" + target.value.substring(start);
+                mod = true;
+                }
+            }
+        else if (start == 0)
+            {
+            if (e.key == "Delete")
+                {
+                target.value = "0" + target.value.substring(1);
+                mod = true;
+                }
+            }
+
+        if (e.key == "Delete")
+            target.selectionStart = target.selectionEnd = start;
+        else
+            {
+            while (start > 1 && "\n\t -".indexOf(target.value.substring(start - 2, start - 1)) != -1)
+                start--;
+            target.selectionStart = target.selectionEnd = start - 1;
+            }
+        if(mod)
+            {
+            this.style.color = "rgb(255, 0, 0)";
+            document.getElementById("commit_ch").disabled = false;
+            pushupdate(target.id);
+            }
+        }
+    }
+
+function updatelen(e) 
+    {
+    var target = e.target;
+    var l = target.value.length;
+    document.getElementById(e.target.id + "-len").innerHTML = l; 
+    }
+function handleKeysDec(e) 
+    {
+    var target = e.target;
+    var start = e.target.selectionStart;
+    var typed = String(e.data);
+    var upd = false;
+    if(target.className == "sed")
+        {
+        upd = true;
+        //var l = target.value.length;
+        //document.getElementById(target.id + "-len").innerHTML = l; 
+        }
+    else if((e.inputType == "deleteContentBackward" || e.inputType == "deleteContentForward") ||
+        ('0123456789'.indexOf(typed) >= 0))
+        upd = true;
+    else if(target.className == "ied")
+        {
+        if(typed == "-" && start == 0 && target.value.indexOf("-") == -1)
+            upd = true;
+        }
+    if(upd)
+        {
+        this.style.color = "rgb(255, 0, 0)";
+        document.getElementById("commit_ch").disabled = false; 
+        var t = document.getElementById(target.id).className; 
+        pushupdate(target.id);     
+        }
+    else {e.stopPropagation(); e.preventDefault();}
+    }
+function handleKeysHex(e) 
+    {
+    e.stopPropagation();
+    e.preventDefault();
+      
+    var target = e.target;
+    var start = target.selectionStart;
+    var typed = String(e.data).toLowerCase();
+    if (target.selectionStart == target.value.length) 
+        return;
+    if ('0123456789abcdef'.indexOf(typed) == -1)
+        return;
+    while ("\t\n -".indexOf(target.value.substring(start, start + 1)) != -1)
+        {
+        start++;
+        if(start > target.value.length)
+            return;
+        }
+    target.value = target.value.substring(0, start) +
+                     e.data +
+                     target.value.substring(start + 1);
+    while (start < target.value.length - 1 && "\t\n |".indexOf(target.value.substring(start + 1, start + 2)) != -1)
+        start++;
+    target.selectionStart = target.selectionEnd = start + 1;
+    
+    this.style.color = "rgb(255, 0, 0)";
+    document.getElementById("commit_ch").disabled = false;
+    pushupdate(target.id);
+    }
+
+function showhide(ns)
+    {
+    var collection = document.getElementsByClassName(ns);
+    if(anch = document.getElementById(ns))
+        {
+        if(anch.innerHTML == "+")
+            {
+            disp = "";
+            anch.innerHTML = "-";
+            }
+        else
+            {
+            disp = "none";
+            anch.innerHTML = "+";
+            }
+        for(var i = 0; i < collection.length; ++i)
+            collection[i].style.display = disp;
+        }
+    }
+function buf2hex(buffer) 
+    {
+    nb = [...new Uint8Array(buffer)]
+      .map(x => x.toString(16).padStart(2, '0'))
+      .join(' ');
+    return nb;
+    }
+
+function loadf(tarea)
+    {
+    var file = event.target.files[0];
+    var fn = document.getElementById(tarea + "-ud");
+    if(fn)
+        fn.innerHTML = file.name;
+    var reader = new FileReader();
+    reader.onload = function(event)
+        {
+        var arrayBuffer = event.target.result;
+  	    var array = new Uint8Array(arrayBuffer);
+		var fileSize = arrayBuffer.byteLength;
+		let bytes = [];
+		for (i = 0; i < fileSize; i++) 
+			bytes.push(array[i]);
+        buf = buf2hex(array);
+        b = buf.toString();
+        console.log("read " + i + " bytes");
+        var ta = document.getElementById(tarea);
+        ta.value = "";
+        i = 0;
+        while(i < buf.length)
+            {
+            ta.value += buf[i];
+            i++;
+            if(i % 24 == 0 && i % 48 != 0)
+                ta.value += "- ";
+            if(i % 48 == 0)
+                ta.value += "\n";
+            }
+        ta.style.color = "rgb(255, 0, 0)";
+        var l = document.getElementById(tarea + "-len");
+        l.innerHTML = fileSize;
+        document.getElementById("commit_ch").disabled = false;
+        pushupdate(tarea);
+        }
+    reader.readAsArrayBuffer(file);    
+    }
+function seltypes()
+    {
+    var v = Number(document.getElementsByName("types")[0].value);
+    var l = document.getElementById("nk_len");
+    switch(Number(v))
+        {
+        case 1: case 17:
+            l.value = 1; l.readOnly = true; break;
+        case 2: case 18:
+            l.value = 2; l.readOnly = true; break;
+        case 4: case 20:
+            l.value = 4; l.readOnly = true; break;
+        case 8: case 24:
+            l.value = 8; l.readOnly = true; break;
+        default:
+            l.value = 0; l.readOnly = false; break;
+        }
+    }
+function createnk()
+    {
+    var alertstr = "";
+    var newns = document.getElementById("newns").value;
+    var newkey = document.getElementById("newkey").value;
+    var kl = document.getElementById("nk_len").value;
+    if(newns.length > 16 || newns.length == 0)
+        alertstr += "namespace length is 0 or exceeds NVS_NS_NAME_MAX_SIZE (16)"  + "\n";
+    if(newkey.length > 16 || newkey.length == 0)
+        alertstr += "key name length is 0 or exceeds NVS_KEY_NAME_MAX_SIZE (16)" + "\n";
+    if(Number(kl) <= 0)
+        alertstr += "length must be 1 or larger" + "\n";
+    if(alertstr.length == 0)
+        {
+        var type = document.getElementById("type").value;
+        var val = document.getElementById("phv").value;
+        ws_send("createkey" + "\1"+ newns + "\1" + newkey + "\1" + type + "\1" + kl + "\1" + val + "\1");
+        }
+    else
+         alert("ERROR(s):" + "\n" + alertstr);
+    }
+</script>
+</head>
+<body onLoad="pageload()">		
+<h1>NVS editor</h1>
+<div style="width: 1100px;">
+<div class="row">
+    <div class="columna">
+        <div style="margin-Left: 50px;">
+            <h3 style="font-size: 16px;">
+            partInfo
+                <table>
+                <tr style="font-size: 22px;">
+                    <td colspan="2">Partition name:</td>
+                    <td>NVS</td>
+                </tr>
+                <tr>
+                    <td style="width: 20px;"> </td>
+                    <td>size:</td>
+                    <td style="text-align: right;">15384 (0X4000)</td>
+                </tr>
+                <tr>
+                    <td></td>
+                    <td>namespaces:</td>
+                    <td style="text-align: right;">34</td>
+                </tr>
+                <tr>
+                    <td></td>
+                    <td>total entries:</td>
+                    <td style="text-align: right;">15384</td>
+                </tr>
+                <tr>
+                    <td></td>
+                    <td>free entries:</td>
+                    <td style="text-align: right;">15384</td>
+                </tr>
+                <tr>
+                    <td></td>
+                    <td>available entries:</td>
+                    <td style="text-align: right;">15384</td>
+                </tr>
+                </table>
+            partInfoend
+            </h3>
+        </div>
+    </div>
+    <div class="columnb">
+        <div style="margin-top: 50px;width: 800px;">
+            <h3 style="font-size: 16px;">Create new key/value pair</h3>
+            <table>
+                <tr style="border-bottom: 0px;">
+                    <td style="width: 140px;">Namespace: </td>
+                    <td>
+                        <input style="width: 150px;" id="newns" list="namespaces" name="namespaces">
+                        <datalist id="namespaces">
+                            <option value="nsoptions">
+                        </datalist>
+                    </td>
+                    <td style="width: 90px; text-align: right;">Key name: </td>
+                    <td>
+                        <input id = "newkey" style="width: 150px;">
+                    </td>
+                    <td>&nbsp;Type</td>
+                    <td>
+                        <select name="types" id="type" style="width: 140px;" onChange = "seltypes()">
+                            <option value="1">NVS_TYPE_U8</option>
+                            <option value="17">NVS_TYPE_I8</option>
+                            <option value="2">NVS_TYPE_U16</option>
+                            <option value="18">NVS_TYPE_I16</option>
+                            <option value="4">NVS_TYPE_U32</option>
+                            <option value="20">NVS_TYPE_I32</option>
+                            <option value="8">NVS_TYPE_U64</option>
+                            <option value="24">NVS_TYPE_I64</option>
+                            <option value="33">NVS_TYPE_STR</option>
+                            <option value="66">NVS_TYPE_BLOB</option>
+                        </select>
+                    </td>
+                </tr>
+                <tr style="border-bottom: 0px;">
+                    <td>Value(placeholder):</td>
+                    <td colspan="3"><textarea id = "phv" rows="1" style="width: 390px; resize: vertical;"></textarea></td>
+                    <td>&nbsp;Length:</td>
+                    <td><input id = "nk_len" style="width: 140px;"></td>
+                </tr>
+                <tr style="border-bottom: 0px;"><td>&nbsp;</td></tr>
+                <tr style="border-bottom: 0px;">
+                    <td></td><td></td>
+                    <td colspan="2">
+                        <button id="createnk" onclick="createnk()">Create</button>
+                    </td>
+                </tr>
+            </table>
+        </div>
+        </div>
+    </div>
+</div>
+
+<div style="margin-left: 50px;">
+insertkeys
+<table class="fixed">
+    <tr>
+    	<th style="width: 40px; text-align: center; font-size: 40px;"></th> 
+        <th style="width: 140px;">name</th> 
+        <th style="width: 140px;">type</th> 
+        <th style="width: 80px;">length(B)</th>
+        <th style="width: 680px;">value&nbsp;&nbsp;<button id = "commit_ch" type="button" disabled onclick="commitc()">Commit changes</button></th> 
+        <th style="width: 80px;"><button style="width: 80px;" type="button" onclick="delsel()">Erase sel</button></th> 
+    </tr>
+    <tr class="strong">
+        <td class="shsign"><a id = "ns1" style="text-decoration: none;" href="#" onclick="showhide('ns1')">+</a></td>
+        <td colspan="4"><b>ns1</b></td>
+        <td><label> &nbsp; &nbsp; &nbsp; &nbsp;</label><input name="ns1" class="sel2delns" type="checkbox"></td>
+    </tr>
+    <tr class="ns1" style="display: none;">
+        <td></td>
+        <td>key 1</td>
+        <td id="[0][0]-type" name="66">NVS_TYPE_BLOB</td>
+        <td id="[0][0]-len">10</td>
+        <td>
+            <textarea class = "hed" id="[0][0]" rows="1" style="width: 673px; resize: vertical;">48 49 50 51 52 53 54 55  48 49</textarea><br>
+            <button id="dump" onclick="dump()">Dump to...</button>&nbsp;&nbsp;&nbsp;
+            <button id="upload" type="button" onclick="document.getElementById('[0][0]-file').click()">Update from...</button>
+            <label id="[0][0]-ud"></label>
+            <input id="[0][0]-file" type="file" onchange="loadf('[0][0]')" style="display:none;">
+        </td>
+        <td><input class="sel2del" type="checkbox" name="ns1" id="[0][0]-sel"></td>
+    </tr>
+    <tr class="ns1" style="display: none;">
+        <td></td>
+        <td>key2</td>
+        <td id="[0][1]-type" name="4">NVS_TYPE_U32</td>
+        <td id="[0][1]-len">4</td>
+        <td><input class = "ued" type="text" id="[0][1]" value="66665555"></td>
+        <td><input class="sel2del" type="checkbox" name="ns1" id="[0][1]-sel"></td>
+    </tr>
+    <tr class="ns1" style="display: none;">
+        <td></td>
+        <td>key3</td>
+        <td id="[0][2]-type" name="33">NVS_TYPE_STR</td>
+        <td id="[0][2]-len">19</td>
+        <td>
+            <textarea class = "sed" id="[0][2]" rows="1" style="width: 673px; resize: vertical;">acesta este un text</textarea>
+        </td>
+        <td><input class="sel2del" type="checkbox" name="ns1" id="[0][2]-sel"></td>
+    </tr>
+    <tr class="strong">
+        <td class="shsign"><a id = "ns2" style="text-decoration: none;" href="#" onclick="showhide('ns2')">+</a></td>
+        <td colspan="4"><b>ns2</b></td>
+        <td><input name="ns2" class="sel2delns" type="checkbox"></td>
+    </tr>
+    <tr class="ns2" style="display: none;">
+        <td></td>
+        <td>key1</td>
+        <td id="[1][0]-type" name="66">NVS_TYPE_BLOB</td>
+        <td id="[1][0]-len">418</td>
+        <td>
+            <textarea class = "hed" id="[1][0]" rows="1" style="width: 673px; resize: vertical;">2233168</textarea><br>
+            <button id="dump" onclick="dump()">Dump to...</button>&nbsp;&nbsp;&nbsp;
+            <button id="upload" type="button" onclick="document.getElementById('[1][0]-file').click()">Update from...</button>
+            <label id="[1][0]-ud"></label>
+            <input id="[1][0]-file" type="file" onchange="loadf('[1][0]')" style="display:none;">
+        </td>
+        <td><input class="sel2del" type="checkbox" name="ns2" id="[1][0]-sel"></td>
+    </tr>
+    <tr class="ns2" style="display: none;">
+        <td></td>
+        <td>key2</td>
+        <td id="[1][1]-type" name="18">NVS_TYPE_I16</td>
+        <td id="[1][1]-len">4</td>
+        <td><input class = "ied" type="text" id="[1][1]" value="66665555"></td>
+        <td><input class="sel2del" type="checkbox" name="ns2" id="[1][1]-sel"></td>
+    </tr>
+    <tr class="ns2" style="display: none;">
+        <td></td>
+        <td>key3</td>
+        <td id="[1][2]-type" name="33">NVS_TYPE_STR</td>
+        <td id="[1][2]=len">23</td>
+        <td>
+            <textarea class = "sed" id="[1][2]" rows="2" style="width: 450px; resize: vertical;">acesta este alt text</textarea>
+        </td>
+        <td><input class="sel2del" type="checkbox" name="ns2" id="[1][2]-sel"></td>
+    </tr>
+</table>
+</div>
+</body></html>

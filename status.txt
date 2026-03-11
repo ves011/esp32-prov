@@ -1,0 +1,8 @@
+2026-03-11
+	code complete status
+		partition table - all
+		nvs editor
+			list entries
+			create new key
+			update keys with type < NVS_TYPE_STR
+			
