@@ -55,12 +55,16 @@ void ws_handler_task(void *pvParameters)
 	wsmsqg_t msg;
 	char *pstr;
 	char buf[128];
-	int idxn, idxk, len, nrc;
+	int idxn, idxk, len, nrc, type, ret;
+	rcv_keyval_t rval;
+	uint8_t *b;
 	while(1)
 		{
 		if(xQueueReceive(ws_msg_queue, &msg, portMAX_DELAY))
 			{
-			ESP_LOGI(TAG, "websocket message fd:%d message: %s", msg.fd, msg.payload.strpayload);
+			strncpy(buf, msg.payload.strpayload, 32);
+			buf[32] = 0;
+			ESP_LOGI(TAG, "websocket message fd:%d message: %s", msg.fd, buf);
 			pstr = strtok(msg.payload.strpayload, "\1");
 			if(strcmp(pstr, SETBOOT) == 0)
 				{
@@ -68,7 +72,7 @@ void ws_handler_task(void *pvParameters)
 				if(pstr)
 					{
 					
-					int ret = set_bp(pstr);
+					ret = set_bp(pstr);
 					if(ret != ESP_OK)
 						sprintf(buf, "setBoot\1%s\1%s", esp_err_to_name(ret), pstr);
 					else
@@ -139,18 +143,21 @@ void ws_handler_task(void *pvParameters)
 					{
 					pstr = strtok(NULL, "\1");
 					const esp_partition_t *np = NULL;
-					int ret;
 					esp_partition_iterator_t pit = esp_partition_find(ESP_PARTITION_TYPE_ANY, ESP_PARTITION_SUBTYPE_ANY, NULL);
 				    while(pit)
     					{
 						np = esp_partition_get(pit);
 						if(strcmp(np->label, pstr) == 0)
 							{
-							if(np->subtype == 2)
+							if(np->subtype == ESP_PARTITION_SUBTYPE_DATA_NVS)
 								{
-								ret = nvs_flash_erase_partition(pstr);
+								ret = nvs_flash_deinit_partition(pstr);
 								if(ret == ESP_OK)
-									nvs_flash_init_partition(pstr);
+									{
+									ret = nvs_flash_erase_partition(pstr);
+									if(ret == ESP_OK)
+										nvs_flash_init_partition(pstr);
+									}
 								}
 							else
 								ret = esp_partition_erase_range(np, 0, np->size);
@@ -169,7 +176,6 @@ void ws_handler_task(void *pvParameters)
 				{
 				char ns[NVS_NS_NAME_MAX_SIZE];
 				char key[NVS_KEY_NAME_MAX_SIZE];
-				int type, len, ret;
 				char *phv;
 				pstr = strtok(NULL, "\1");
 				if(pstr)
@@ -221,8 +227,11 @@ void ws_handler_task(void *pvParameters)
 						pstr = strtok(NULL, "\1");
 						if(pstr)
 							{
-							nrc = atoi(pstr); 
-							recv_update(idxn, idxk, len, nrc);
+							nrc = atoi(pstr);
+							rval.idxkey = idxk; rval.idxns = idxn; rval.len = len; rval.nr_cunks = nrc;
+							rval.recvb = NULL; 
+							xQueueSend(receive_q, &rval, 50);
+							//recv_update(idxn, idxk, len, nrc);
 							}
 						}
 					}
@@ -232,17 +241,54 @@ void ws_handler_task(void *pvParameters)
 				pstr = strtok(NULL, "\1");
 				if(pstr)
 					{
-					sscanf(pstr, "[%d][%d]", &idxn, &idxk);
+					sscanf(pstr, "[%d][%d]", &idxn, &idxk); //id
 					pstr = strtok(NULL, "\1");
 					ESP_LOGI(TAG, "%d  %d %s", idxn, idxk, pstr);
 					if(pstr)
 						{
-						char buf[80];
-						int ret = update_keyval(idxn, idxk, pstr + strlen(pstr) + 1);
-						sprintf(buf, "update key\1[%d][%d]\1%s\1%d\1%s\1", 
-							idxn, idxk, nvskey[idxk].name, ret, esp_err_to_name(ret));
-						send_strmsg(buf);
+						int chunk_nr = atoi(pstr); // current chunk number
+						pstr = strtok(NULL, "\1");
+						if(pstr)
+							{
+							int sz = atoi(pstr); // chunk size
+							rval.idxkey = idxk; rval.idxns = idxn;
+							rval.rcv_chunks = chunk_nr;
+							rval.len = sz;
+							b = calloc(rval.len + 1, 1);
+							if(b)
+								{
+								memcpy(b, pstr + strlen(pstr) + 1, rval.len);
+								rval.recvb = b;
+								//char buf[80];
+								xQueueSend(receive_q, &rval, 50);
+								//int ret = update_keyval(idxn, idxk, pstr + strlen(pstr) + 1);
+								//sprintf(buf, "update key\1[%d][%d]\1%s\1%d\1%s\1", 
+								//	idxn, idxk, nvskey[idxk].name, ret, esp_err_to_name(ret));
+								//send_strmsg(buf);
+								}
+							}
 						}
+					}
+				}
+			else if(strcmp(pstr, DELETE_NS) == 0)
+				{
+				pstr = strtok(NULL, "\1");
+				if(pstr)
+					{
+					ret = erase_nvs_key(pstr, NULL);
+					sprintf(buf, "delete key resp\1%s\1%d\1%s",pstr, ret, esp_err_to_name(ret));
+					send_strmsg(buf);
+					}
+				}
+			else if(strcmp(pstr, DELETE_KEY) == 0)
+				{
+				pstr = strtok(NULL, "\1");
+				if(pstr)
+					{
+					sscanf(pstr, "[%d][%d]", &idxn, &idxk); //id
+					ret = erase_nvs_key(namespace[idxn].name, nvskey[idxk].name);
+					sprintf(buf, "delete key resp\1%s\1%d\1%s",nvskey[idxk].name, ret, esp_err_to_name(ret));
+					send_strmsg(buf);
 					}
 				}
 			else

@@ -33,11 +33,20 @@ typedef struct
 	int idxkey;
 	int type;
 	int len;
+	int rcvlen;
 	int state;
 	int nr_cunks;
 	int rcv_chunks;
 	uint8_t *recvb;
 	} rcv_keyval_t;
+	
+typedef struct
+	{
+	int ns;
+	int key;
+	int len;
+	int nrc;
+	} update_req_t;
 
 extern namespace_t *namespace;
 extern nvskey_t *nvskey;
@@ -48,10 +57,11 @@ void register_nvsop(void);
 int get_nvs_entries(char *pName);
 int create_nvs_key(char *pName, char *ns, char *key, int type, int len, char *phv);
 int recv_update(int idn, int idk, int len, int nrc);
-void update_handler_task(void *pvParameters);
-int update_keyval(int idxn, int idxk, void *pstr);
-int set_nvs_value(int idxkey, void *val);
-int nvs_set_http_val(int type, nvs_handle_t handle, char *name, int len, void *val);
+void nvs_update_task(void *pvParameters);
+//int update_keyval(int idxn, int idxk, void *pstr);
+//int set_nvs_value(int idxkey, void *val);
+int nvs_set_val(int type, nvs_handle_t handle, char *name, int len, void *val);
+int erase_nvs_key(char *ns, char *key);
 
 
 #endif /* MAIN_NVSOP_H_ */

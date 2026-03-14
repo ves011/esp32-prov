@@ -19,10 +19,13 @@
 #define DSTATUS 	"dstatus"		// dump partition image status
 #define ERASE		"erase"			// erase partition
 
-#define CREATEKEY	"createkey"		// create NVS key/value pair 
-#define UPD_REQUEST	"update req"
-#define SEND_VAL	"send val"
-#define UPDATE_VAL	"update val"
+#define CREATEKEY		"createkey"		// create NVS key/value pair 
+#define UPD_REQUEST		"update req"
+#define SEND_VAL		"send val"
+#define UPDATE_VAL		"update val"
+#define DELETE_NS		"delete ns"
+#define DELETE_KEY		"delete key"
+#define DELETE_KEY_RESP	"delete key resp"
 
 
 

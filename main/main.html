@@ -14,6 +14,7 @@ html.wait, html.wait * { cursor: wait !important; }
 var c_connected = false;
 var websocket  = null;
 var xhttp;
+/*
 function openTab(evt, section) 
 	{
 	var i, tabcontent, tablinks;
@@ -24,12 +25,14 @@ function openTab(evt, section)
 	document.getElementById(section).style.display = "block";
 	evt.currentTarget.className += " active";
 	}
+
 function rfresh() {
 	location.reload();
 	//document.getElementById("genconf").method = "POST";
 	//document.getElementById("genconf").action = '/';
 	return true;
 	}
+*/
 function setBoot()
 	{
 	var pName = document.getElementById("parts").value;
@@ -40,25 +43,14 @@ function erase()
 	var pName = document.getElementById("parts").value;
 	ws_send("erase" + '\1query\1' + pName + '\1');
 	}
-function update(fName) {
+function update(fName) 
+	{
 	if(fName == "reboot")
 		{
 		document.getElementById(fName).method = "POST";
 		document.getElementById(fName)[0].value = "1";
 		document.getElementById(fName).action = "/a";
 		}
-	//else if(fName == "setboot")
-	//	{
-	//	document.getElementById(fName).method = "POST";
-	//	document.getElementById(fName)[0].value = document.getElementById("parts").value;
-	//	document.getElementById(fName).action = "/sb";
-	//	}
-	else if(fName == "genconf")
-		{
-		document.getElementById(fName).method = "POST";
-		document.getElementById(fName).action = "/a";
-		}
-	return true;
 	}
 function ws_send(msg)
 	{
@@ -117,11 +109,13 @@ function ws_receive(msg)
 			alert(params[2]);
 		}
 	}
+/*
 function setpath() 
 	{
     var default_path = document.getElementById("newfile").files[0].name;
     //document.getElementById("filepath").value = default_path;
 	}
+*/
 function upload() 
 	{
 	//var filePath = document.getElementById("newfile").files[0].name;
@@ -186,9 +180,17 @@ function dump()
     	link.parentNode.removeChild(link);
   		}, 100);
 	}
+function pageload()
+    {
+    const wsUri = window.location.origin + "/ws";
+	websocket = new WebSocket(wsUri);
+	websocket.addEventListener("open", () => {console.log("CONNECTED"); c_connected = true;});
+	websocket.addEventListener("close", (event) => {console.log("DISCONNECTED: " + event.data); c_connected = false;});
+	websocket.onmessage = (msg) => {ws_receive(msg);};
+	}
 </script>
 </head>
-<body>	
+<body onLoad="pageload()">	
 <div id="Partitions">
 	<h1>Partition Table</h1>
 	<h6>(b) - boot partition<br>(*) - running partition</h6>
@@ -235,7 +237,7 @@ function dump()
   		</td></tr>
   		<tr>
   		<td><button id="upload" type="button" onclick="upload()">Flash</button></td>
-  		<td><input id="newfile" type="file" onchange="setpath()" style="width:100%;"></td>
+  		<td><input id="newfile" type="file" style="width:100%;"></td>
 		<td id="ustatus"></td>
   		</tr>
   		<tr>

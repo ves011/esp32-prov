@@ -463,7 +463,10 @@ esp_err_t ws_handler(httpd_req_t *req)
     	{
         if (ws_pkt.type == HTTPD_WS_TYPE_TEXT || ws_pkt.type == HTTPD_WS_TYPE_BINARY) 
         	{
-            ESP_LOGI(TAG, "Received packet with message: %s", ws_pkt.payload);
+			char b[40];
+			strncpy(b, (char *)ws_pkt.payload, 32);
+			b[32] = 0;
+            ESP_LOGI(TAG, "Received packet with message: %s", b);
             msg.fd = httpd_req_to_sockfd(req);
             msg.len = ws_pkt.len + 1; 
             memcpy(msg.payload.strpayload, ws_pkt.payload, sizeof(msg.payload.binpaiload));
@@ -591,6 +594,8 @@ esp_err_t flashing_post_handler(httpd_req_t *req)
 				break;
 		pit = esp_partition_next(pit);
 		}
+	if(np->subtype == ESP_PARTITION_SUBTYPE_DATA_NVS)
+		ret = nvs_flash_deinit_partition(np->label);
 	ret = esp_partition_erase_range(np, 0, np->size);
 	if(ret != ESP_OK)
 		{
@@ -636,12 +641,13 @@ esp_err_t flashing_post_handler(httpd_req_t *req)
         xQueueSend(ws_msg_queue, &msg, pdMS_TO_TICKS(20));
         rcv += received;
     	}
-
+	if(np->subtype == ESP_PARTITION_SUBTYPE_DATA_NVS)
+		ret = nvs_flash_init_partition(np->label);
     ESP_LOGI(TAG, "File reception complete");
     httpd_resp_set_status(req, "200 OK");
     httpd_resp_sendstr(req, "File upload status");
     return ESP_OK;
-}
+	}
 
 esp_err_t dump_get_handler(httpd_req_t *req)
 	{
