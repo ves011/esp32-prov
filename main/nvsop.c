@@ -326,7 +326,7 @@ int create_nvs_key(char *pName, char *ns, char *key, int type, int len, char *ph
 		}
 	return ret;
 	}
-
+/*
 int recv_update(int idn, int idk, int len, int nrc)
 	{
 	void *pr;
@@ -420,7 +420,7 @@ int recv_update(int idn, int idk, int len, int nrc)
 		}
 	return ret;
 	}
-/*	
+	
 int update_keyval(int idxn, int idxk, void *pstr)
 	{
 	int i, k, j;
@@ -489,7 +489,7 @@ void nvs_update_task(void *pvParameters)
 					{
 					if(nvskey[rval.idxkey].ns_idx == rval.idxns)
 						{
-						if(rval.type < NVS_TYPE_STR)
+						if(nvskey[rval.idxkey].type < NVS_TYPE_STR)
 							b = calloc(1, 8);
 						else
 							b = calloc(1, rval.len);
@@ -507,6 +507,7 @@ void nvs_update_task(void *pvParameters)
 								rcv_keyval[i].rcv_chunks = 0;
 								rcv_keyval[i].recvb = b;
 								rcv_keyval[i].type = nvskey[rval.idxkey].type;
+								rcv_keyval[i].rcvlen = 0;
 								//sprintf(buf, "%s\1[%d][%d]", SEND_VAL, rval.idxns, rval.idxkey);
 								//send_strmsg(buf);
 								nrcv++;
@@ -545,6 +546,7 @@ void nvs_update_task(void *pvParameters)
 							rcv_keyval[i].nr_cunks = rval.nr_cunks;
 							rcv_keyval[i].rcv_chunks = 0;
 							rcv_keyval[i].recvb = b;
+							rcv_keyval[i].rcvlen = 0;
 							}
 						else
 							{
@@ -562,38 +564,20 @@ void nvs_update_task(void *pvParameters)
 				{
 				if(i < nrcv && rcv_keyval[i].state < UPDATE_COMPLETE)
 					{
-					if(rval.type < NVS_TYPE_STR)
+					if(rcv_keyval[i].type < NVS_TYPE_STR)
 						{
+						rcv_keyval[i].state = UPDATE_COMPLETE;
 						ret = nvs_open_from_partition(nvs_selpart, namespace[rcv_keyval[i].idxns].name, NVS_READWRITE, &handle);
 						ESP_LOGI(TAG, "name space open: %s / out handle %d", esp_err_to_name(ret), handle);
 						if(ret == ESP_OK)
 							{
 							ret = nvs_set_val(nvskey[rcv_keyval[i].idxkey].type, handle, nvskey[rcv_keyval[i].idxkey].name, nvskey[rcv_keyval[i].idxkey].size, rval.recvb);
-							if(ret == ESP_OK)
-								{
-								ESP_LOGI(TAG, "rcv_keyval, nrcv %x %d", rcv_keyval, nrcv);
-								if(rcv_keyval[i].recvb)
-									free(rcv_keyval[i].recvb);
-								for(int j = i + 1; j < nrcv; j++)
-									memcpy(&rcv_keyval[j - 1], &rcv_keyval[j], sizeof(rcv_keyval_t));
-								pr = realloc(rcv_keyval, sizeof(rcv_keyval_t) * (nrcv - 1));
-								nrcv--;
-								if(nrcv)
-									{
-									if(pr)
-										rcv_keyval = pr;
-									}
-								else
-									rcv_keyval = NULL;
-								
-								}
-							else
+							if(ret != ESP_OK)
 								ESP_LOGI(TAG, "Error updating key %s (%d)", esp_err_to_name(ret), ret);
 							}
 						}
-					else if(rval.type == NVS_TYPE_STR)
+					else if(rcv_keyval[i].type == NVS_TYPE_STR)
 						{
-						ret = ESP_FAIL;
 						memcpy(rcv_keyval[i].recvb + rval.rcv_chunks * RCV_CHUNK_SIZE, rval.recvb, rval.len);
 						rcv_keyval[i].rcvlen += rval.len;
 						if(rcv_keyval[i].rcvlen == rcv_keyval[i].len)
@@ -604,7 +588,7 @@ void nvs_update_task(void *pvParameters)
 							rcv_keyval[i].state = UPDATE_COMPLETE;
 							if(ret == ESP_OK)
 								{
-								ret = nvs_set_val(nvskey[rcv_keyval[i].idxkey].type, handle, nvskey[rcv_keyval[i].idxkey].name, nvskey[rcv_keyval[i].idxkey].size, rcv_keyval[i].recvb);
+								ret = nvs_set_val(nvskey[rcv_keyval[i].idxkey].type, handle, nvskey[rcv_keyval[i].idxkey].name, rcv_keyval[i].len, rcv_keyval[i].recvb);
 								if(ret != ESP_OK)
 									ESP_LOGI(TAG, "Error updating key %s (%d)", esp_err_to_name(ret), ret);
 								}
@@ -614,6 +598,7 @@ void nvs_update_task(void *pvParameters)
 						else if(rcv_keyval[i].rcvlen > rcv_keyval[i].len)
 							{
 							rcv_keyval[i].state = UPDATE_COMPLETE;
+							ret = -0x200000;
 							ESP_LOGI(TAG, "%s wrong length received. Expected %d received %d", 
 								nvskey[rcv_keyval[i].idxkey].name,  rcv_keyval[i].len, rcv_keyval[i].rcvlen);
 							}
@@ -623,27 +608,27 @@ void nvs_update_task(void *pvParameters)
 								nvskey[rcv_keyval[i].idxkey].name,  rcv_keyval[i].len, rcv_keyval[i].rcvlen);
 							rcv_keyval[i].state = UPDATE_INPROGRESS;
 							}	
-						if(rcv_keyval[i].state == UPDATE_COMPLETE)
-							{
-							sprintf(buf, "update key\1[%d][%d]\1%s\1%d\1%s\1", 
-								rcv_keyval[i].idxns, rcv_keyval[i].idxkey, nvskey[rcv_keyval[i].idxkey].name, ret, esp_err_to_name(ret));
-							send_strmsg(buf);
-							if(rcv_keyval[i].recvb)
-								free(rcv_keyval[i].recvb);
-							for(int j = i + 1; j < nrcv; j++)
-								memcpy(&rcv_keyval[j - 1], &rcv_keyval[j], sizeof(rcv_keyval_t));
-							pr = realloc(rcv_keyval, sizeof(rcv_keyval_t) * (nrcv - 1));
-							nrcv--;
-							if(nrcv)
-								{
-								if(pr)
-									rcv_keyval = pr;
-								}
-							else
-								rcv_keyval = NULL;
-							
-							}
 						}
+					if(rcv_keyval[i].state == UPDATE_COMPLETE)
+						{
+						sprintf(buf, "update key\1[%d][%d]\1%s\1%d\1%s\1", 
+								rcv_keyval[i].idxns, rcv_keyval[i].idxkey, nvskey[rcv_keyval[i].idxkey].name, ret, esp_err_to_name(ret));
+						send_strmsg(buf);	
+						if(rcv_keyval[i].recvb)
+							free(rcv_keyval[i].recvb);
+						for(int j = i + 1; j < nrcv; j++)
+							memcpy(&rcv_keyval[j - 1], &rcv_keyval[j], sizeof(rcv_keyval_t));
+						pr = realloc(rcv_keyval, sizeof(rcv_keyval_t) * (nrcv - 1));
+						nrcv--;
+						if(nrcv)
+							{
+							if(pr)
+								rcv_keyval = pr;
+							}
+						else
+							rcv_keyval = NULL;
+						}
+
 					}
 				else
 					ESP_LOGI(TAG, "NO rcv_keyval found or state = UPDATE_INPROGRESS (i: %d / %d)", i, nrcv);
@@ -651,21 +636,7 @@ void nvs_update_task(void *pvParameters)
 			}
 		}
 	}
-/*
-int set_nvs_value(int idxkey, void *val)
-	{
-	int ret = ESP_FAIL;
-	if(idxkey < nkeys)
-		{
-		nvs_handle_t handle;;
-		ret = nvs_open_from_partition(nvs_selpart, namespace[nvskey[idxkey].ns_idx].name, NVS_READWRITE, &handle);
-		ESP_LOGI(TAG, "name space open: %s / out handle %d", esp_err_to_name(ret), handle);
-		if(ret == ESP_OK)
-			ret = nvs_set_val(nvskey[idxkey].type, handle, nvskey[idxkey].name, nvskey[idxkey].size, val);
-		}
-	return ret;
-	}
-*/
+
 int nvs_set_val(int type, nvs_handle_t handle, char *name, int len, void *val)
 	{
 	int ret = ESP_FAIL;
@@ -705,6 +676,7 @@ int nvs_set_val(int type, nvs_handle_t handle, char *name, int len, void *val)
 			ret = nvs_set_i64(handle, name, *(int64_t *)swapb);
 			break;
 		case NVS_TYPE_STR:
+			*(char *)(val + len) = 0;
 			ret = nvs_set_str(handle, name, val);
 			break;
 /*			

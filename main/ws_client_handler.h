@@ -13,6 +13,7 @@
 #define MSG_2SEND			2
 
 #define RCV_CHUNK_SIZE		512
+#define MAX_KEY_SIZE		4096
 
 #define SETBOOT 	"setBoot"		// set boot partition
 #define USTATUS 	"ustatus"		// upload partition image status
@@ -35,8 +36,8 @@ typedef struct
 	int len;
 	union
 		{
-		char strpayload[1024];
-		uint8_t binpaiload[1024];
+		char strpayload[MAX_KEY_SIZE + 100];
+		uint8_t binpayload[MAX_KEY_SIZE + 100];
 		} payload;
 	} wsmsqg_t;
 	

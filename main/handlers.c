@@ -469,7 +469,7 @@ esp_err_t ws_handler(httpd_req_t *req)
             ESP_LOGI(TAG, "Received packet with message: %s", b);
             msg.fd = httpd_req_to_sockfd(req);
             msg.len = ws_pkt.len + 1; 
-            memcpy(msg.payload.strpayload, ws_pkt.payload, sizeof(msg.payload.binpaiload));
+            memcpy(msg.payload.strpayload, ws_pkt.payload, sizeof(msg.payload.binpayload));
             xQueueSend(ws_msg_queue, &msg, pdMS_TO_TICKS(20));
             free(buf);
             return ESP_OK;

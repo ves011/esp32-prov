@@ -55,7 +55,7 @@ void ws_handler_task(void *pvParameters)
 	wsmsqg_t msg;
 	char *pstr;
 	char buf[128];
-	int idxn, idxk, len, nrc, type, ret;
+	int idxn, idxk, len, nrc, type, ret, chunk_nr;
 	rcv_keyval_t rval;
 	uint8_t *b;
 	while(1)
@@ -238,34 +238,36 @@ void ws_handler_task(void *pvParameters)
 				}
 			else if(strcmp(pstr, UPDATE_VAL) == 0)
 				{
-				pstr = strtok(NULL, "\1");
+				//update val - token
+				//id - 
+				//chunk no
+				//chunk length
+				//chunk payload
+				pstr = strtok(NULL, "\1"); //id
 				if(pstr)
 					{
 					sscanf(pstr, "[%d][%d]", &idxn, &idxk); //id
-					pstr = strtok(NULL, "\1");
 					ESP_LOGI(TAG, "%d  %d %s", idxn, idxk, pstr);
+					pstr = strtok(NULL, "\1"); // length
 					if(pstr)
 						{
-						int chunk_nr = atoi(pstr); // current chunk number
-						pstr = strtok(NULL, "\1");
+						chunk_nr = atoi(pstr); //chunk no
+						pstr = strtok(NULL, "\1"); 
 						if(pstr)
 							{
-							int sz = atoi(pstr); // chunk size
-							rval.idxkey = idxk; rval.idxns = idxn;
-							rval.rcv_chunks = chunk_nr;
-							rval.len = sz;
-							b = calloc(rval.len + 1, 1);
+							len = atoi(pstr); // chunk length 
+							b = calloc(len, 1);
 							if(b)
 								{
-								memcpy(b, pstr + strlen(pstr) + 1, rval.len);
+								rval.idxkey = idxk; rval.idxns = idxn;
+								rval.len = len;
 								rval.recvb = b;
-								//char buf[80];
+								rval.rcv_chunks = chunk_nr;
+								memcpy(rval.recvb, pstr + strlen(pstr) + 1, rval.len);
 								xQueueSend(receive_q, &rval, 50);
-								//int ret = update_keyval(idxn, idxk, pstr + strlen(pstr) + 1);
-								//sprintf(buf, "update key\1[%d][%d]\1%s\1%d\1%s\1", 
-								//	idxn, idxk, nvskey[idxk].name, ret, esp_err_to_name(ret));
-								//send_strmsg(buf);
 								}
+							else
+								ESP_LOGI(TAG, "ERROR - cannot allocate chunk memory");
 							}
 						}
 					}

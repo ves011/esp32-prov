@@ -72,6 +72,7 @@ function ws_receive(msg)
                     view.setBigUint64(pre.length, v);
                     ws_send(buf);
                     }
+                /*
                 else if(type == 33) // NVS_TYPE_STR
                     {
                     var l = 0, pos = 0, n = 0;
@@ -83,12 +84,45 @@ function ws_receive(msg)
                         else 
                             l = b.length - pos;
                         var buf1 = "update val" + "\1" + params[1] + "\1" + n + "\1" + l + "\1";
-                        var buf = buf1 + b.substring(pos, pos + len);
+                        var buf = buf1 + b.substring(pos, pos + l);
                         ws_send(buf);
                         pos += l;
                         n++;
                         }
                     }
+                else if(type == 64) //BLOB
+                    {
+                    var l = 0, pc = 0, n = 0, pf = 0;
+                    var b = document.getElementById(params[1]).value;
+                    var num = b.split(/(?:-| |\n)+/);
+                    len = document.getElementById(params[1] + "-len").innerHTML;
+                    var bb = new ArrayBuffer(len);
+                    while(ps < len)
+                        {
+                        if(pos + 512 < len)
+                            l = 512;
+                        else 
+                            l = len - pos;
+                        }
+                    var bb = new ArrayBuffer();
+                    while(pf < len)
+                        {
+                        bb.push(parseInt(num[pf], 16));
+                        pf++;
+                        pc++;
+                        if(pc == 512)
+                            {
+                            var pre = (new TextEncoder()).encode("update val" + "\1" + params[1] + "\1" + n + "\1" + "512" + "\1");
+                            var msg = pre.concat(bb);
+                            ws_send(msg);
+                            pc = 0;
+                            }
+                        }
+                    if(pc > 0)
+                        {
+                        }
+                    }
+                */
                 break;
                 }
             }
@@ -161,13 +195,13 @@ function pageload()
         {
         cb[i].addEventListener("click", setSel);
         }
-
+/*
     const wsUri = window.location.origin + "/ws";
 	websocket = new WebSocket(wsUri);
 	websocket.addEventListener("open", () => {console.log("CONNECTED"); c_connected = true;});
 	websocket.addEventListener("close", (event) => {console.log("DISCONNECTED: " + event.data); c_connected = false;});
 	websocket.onmessage = (msg) => {ws_receive(msg);};
-
+*/
     }
 function setSel(e)
     {
@@ -355,6 +389,10 @@ function buf2hex(buffer)
     return nb;
     }
 
+function readfile(reader, file)
+    {
+    reader.readAsArrayBuffer(file);
+    }
 function loadf(tarea)
     {
     var file = event.target.files[0];
@@ -362,8 +400,10 @@ function loadf(tarea)
     if(fn)
         fn.innerHTML = file.name;
     var reader = new FileReader();
+    document.body.style.cursor = 'wait';
     reader.onload = function(event)
         {
+        //document.body.style.cursor = 'wait';
         var arrayBuffer = event.target.result;
   	    var array = new Uint8Array(arrayBuffer);
 		var fileSize = arrayBuffer.byteLength;
@@ -390,8 +430,9 @@ function loadf(tarea)
         l.innerHTML = fileSize;
         document.getElementById("commit_ch").disabled = false;
         pushupdate(tarea);
+        document.body.style.cursor = 'default';
         }
-    reader.readAsArrayBuffer(file);    
+    var t = setTimeout(readfile, 300, reader, file)
     }
 function seltypes()
     {
@@ -416,19 +457,21 @@ function createnk()
     var alertstr = "";
     var newns = document.getElementById("newns").value;
     var newkey = document.getElementById("newkey").value;
+    var type = document.getElementById("type").value;
     var kl = document.getElementById("nk_len").value;
+    var val = document.getElementById("phv").value;
     if(newns.length > 16 || newns.length == 0)
         alertstr += "namespace length is 0 or exceeds NVS_NS_NAME_MAX_SIZE (16)"  + "\n";
     if(newkey.length > 16 || newkey.length == 0)
         alertstr += "key name length is 0 or exceeds NVS_KEY_NAME_MAX_SIZE (16)" + "\n";
     if(Number(kl) <= 0)
         alertstr += "length must be 1 or larger" + "\n";
+    if(type == 33 && kl >= 4000)
+        alertstr += "for NVS_TYPE_STR key length must less than 4000" + "\n";
+    if(val.length > 512)
+        alert += "placeholder value is limited by application to max 512" + "\n";
     if(alertstr.length == 0)
-        {
-        var type = document.getElementById("type").value;
-        var val = document.getElementById("phv").value;
         ws_send("createkey" + "\1"+ newns + "\1" + newkey + "\1" + type + "\1" + kl + "\1" + val + "\1");
-        }
     else
          alert("ERROR(s):" + "\n" + alertstr);
     }
@@ -458,6 +501,48 @@ function delsel()
                     }
                 }
             }
+        }
+    }
+function dump(id)
+    {
+    var l = 0, pc = 0, n = 0, pf = 0;
+    //params[1] = id;
+    var b = document.getElementById(id).value;
+    var num = b.split(/(?:-| |\n)+/);
+    len = document.getElementById(id + "-len").innerHTML;
+    /*
+    while(ps < len)
+        {
+        if(pos + 3 < len)
+            l = 3;
+        else 
+            l = len - pos;
+        }
+    */
+    if(len < 3)
+        l = len
+    else
+        l = 3
+
+    var pre = (new TextEncoder()).encode("update val" + "\1" + id + "\1" + n + "\1" + l + "\1");
+    var bb = new ArrayBuffer(l + pre.length);
+    while(pf < len)
+        {
+        bb[pc + pre.length] = parseInt(num[pf], 16);
+        pf++;
+        pc++;
+        if(pc == 3)
+            {
+            for(var i = 0; i < pre.length; i++)
+                bb[i] = pre[i];
+            pc = 0;
+            n++;
+            pre = (new TextEncoder()).encode("update val" + "\1" + id + "\1" + n + "\1" + l + "\1");
+            var bb = new ArrayBuffer(l + pre.length);
+            }
+        }
+    if(pc > 0)
+        {
         }
     }
 </script>
@@ -579,7 +664,7 @@ insertkeys
         <td id="[0][0]-len">10</td>
         <td>
             <textarea class = "hed" id="[0][0]" rows="1" style="width: 673px; resize: vertical;">48 49 50 51 52 53 54 55  48 49</textarea><br>
-            <button id="dump" onclick="dump()">Dump to...</button>&nbsp;&nbsp;&nbsp;
+            <button id="dump" onclick="dump('[0][0]')">Dump to...</button>&nbsp;&nbsp;&nbsp;
             <button id="upload" type="button" onclick="document.getElementById('[0][0]-file').click()">Update from...</button>
             <label id="[0][0]-ud"></label>
             <input id="[0][0]-file" type="file" onchange="loadf('[0][0]')" style="display:none;">
