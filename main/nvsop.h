@@ -8,6 +8,7 @@
 #ifndef MAIN_NVSOP_H_
 #define MAIN_NVSOP_H_
 
+#include "esp_http_server.h"
 #include "nvs.h"
 
 #define UPDATE_READY		0
@@ -24,7 +25,7 @@ typedef struct
 	char name[NVS_KEY_NAME_MAX_SIZE];
 	int ns_idx;
 	int type;
-	int size;
+	size_t size;
 	} nvskey_t;
 	
 typedef struct
@@ -62,6 +63,7 @@ void nvs_update_task(void *pvParameters);
 //int set_nvs_value(int idxkey, void *val);
 int nvs_set_val(int type, nvs_handle_t handle, char *name, int len, void *val);
 int erase_nvs_key(char *ns, char *key);
+esp_err_t nvskey_get_handler(httpd_req_t *req);
 
 
 #endif /* MAIN_NVSOP_H_ */

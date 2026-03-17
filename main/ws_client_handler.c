@@ -88,13 +88,13 @@ void ws_handler_task(void *pvParameters)
 					pstr = strtok(NULL, "\1");
 					if(pstr)
 						{
-						sprintf(buf, "ustatus\1progress\1%s %%\1", pstr);
+						sprintf(buf, USTATUS"\1progress\1%s %%\1", pstr);
 						send_strmsg(buf);
 						}
 					}
 				else if(strcmp(pstr, "error"))
 					{
-					strcpy(buf, "ustatus\1error\1");
+					strcpy(buf, USTATUS"\1error\1");
 					send_strmsg(buf);
 					}
 				}
@@ -106,7 +106,7 @@ void ws_handler_task(void *pvParameters)
 					pstr = strtok(NULL, "\1");
 					if(pstr)
 						{
-						sprintf(buf, "dstatus\1progress\1%s\1", pstr);
+						sprintf(buf, DSTATUS"\1progress\1%s\1", pstr);
 						send_strmsg(buf);
 		                }
 					}
@@ -127,12 +127,12 @@ void ws_handler_task(void *pvParameters)
 							{
 							if(pTable[i].run)
 								{
-								sprintf(buf, "erasestatus\1error\1Cannot erase running partition\1");
+								sprintf(buf, ERASESTATUS"\1error\1Cannot erase running partition\1");
 								send_strmsg(buf);
 								}
 							else
 								{
-								sprintf(buf, "erasestatus\1confirm\1");
+								sprintf(buf, ERASESTATUS"\1confirm\1%s\1", pTable[i].name);
 								send_strmsg(buf);
 								}
 							break;
@@ -242,7 +242,7 @@ void ws_handler_task(void *pvParameters)
 				//id - 
 				//chunk no
 				//chunk length
-				//chunk payload
+				//payload
 				pstr = strtok(NULL, "\1"); //id
 				if(pstr)
 					{

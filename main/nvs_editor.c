@@ -40,12 +40,14 @@ int get_key_val(keydef_t *kd)
 		{
 		case 0x01:
 			strcpy(kd->typestr, "NVS_TYPE_U8");
+			kd->len = 1;
 			if(nvs_get_u8(kd->nvsh, kd->name, &kd->val.u8) == ESP_OK)
 				sprintf(kd->valstr, "%u", kd->val.u8);
 			else
 				strcpy(kd->valstr, "NaN");
 			break;
 		case 0x011:
+			kd->len = 1;
     		strcpy(kd->typestr, "NVS_TYPE_I8");
 			if(nvs_get_i8(kd->nvsh, kd->name, &kd->val.i8) == ESP_OK)
 				sprintf(kd->valstr, "%d", kd->val.i8);
@@ -53,6 +55,7 @@ int get_key_val(keydef_t *kd)
 				strcpy(kd->valstr, "NaN");
     		break;
     	case 0x02:
+    		kd->len = 2;
     		strcpy(kd->typestr, "NVS_TYPE_U16");
 			if(nvs_get_u16(kd->nvsh, kd->name, &kd->val.u16) == ESP_OK)
 				sprintf(kd->valstr, "%u", kd->val.u16);
@@ -60,6 +63,7 @@ int get_key_val(keydef_t *kd)
 				strcpy(kd->valstr, "NaN");
     		break;
     	case 0x12:
+    		kd->len = 2;
     		strcpy(kd->typestr, "NVS_TYPE_I16");
 			if(nvs_get_i16(kd->nvsh, kd->name, &kd->val.i16) == ESP_OK)
 				sprintf(kd->valstr, "%d", kd->val.i16);
@@ -67,6 +71,7 @@ int get_key_val(keydef_t *kd)
 				strcpy(kd->valstr, "NaN");
     		break;
     	case 0x04:
+    		kd->len = 4;
     		strcpy(kd->typestr, "NVS_TYPE_U32");
 			if(nvs_get_u32(kd->nvsh, kd->name, &kd->val.u32) == ESP_OK)
 				sprintf(kd->valstr, "%u", (unsigned int)kd->val.u32);
@@ -74,6 +79,7 @@ int get_key_val(keydef_t *kd)
 				strcpy(kd->valstr, "NaN");
     		break;
     	case 0x14:
+    		kd->len = 4;
     		strcpy(kd->typestr, "NVS_TYPE_I32");
 			if(nvs_get_i32(kd->nvsh, kd->name, &kd->val.i32) == ESP_OK)
 				sprintf(kd->valstr, "%d", (int)kd->val.i32);
@@ -81,6 +87,7 @@ int get_key_val(keydef_t *kd)
 				strcpy(kd->valstr, "NaN");
     		break;
     	case 0x08:
+    		kd->len = 8;
     		strcpy(kd->typestr, "NVS_TYPE_U64");
 			if(nvs_get_u64(kd->nvsh, kd->name, &kd->val.u64) == ESP_OK)
 				sprintf(kd->valstr, "%llu", kd->val.u64);
@@ -88,6 +95,7 @@ int get_key_val(keydef_t *kd)
 				strcpy(kd->valstr, "NaN");
     		break;
     	case 0x18:
+    		kd->len = 8;
     		strcpy(kd->typestr, "NVS_TYPE_I64");
 			if(nvs_get_i64(kd->nvsh, kd->name, &kd->val.i64) == ESP_OK)
 				sprintf(kd->valstr, "%lld", kd->val.i64);
@@ -159,7 +167,7 @@ esp_err_t nvs_get_handler(httpd_req_t *req)
 	
 	if(!pit)
 		{
-		sprintf(buf, "partiotion \"%s\" not found or not NVS type</h3></div></body></html>", pn);
+		sprintf(buf, "partition \"%s\" not found or not NVS type</h3></div></body></html>", pn);
 		httpd_resp_send_chunk(req, buf, strlen(buf));
 		httpd_resp_send_chunk(req, NULL, 0);
         return ESP_OK;
@@ -253,16 +261,15 @@ esp_err_t nvs_get_handler(httpd_req_t *req)
 					keydef.type = nvskey[j].type;
 					strcpy(keydef.name, nvskey[j].name);
 					get_key_val(&keydef);
+					nvskey[j].size = keydef.len;
+					
 					sprintf(buf, "<tr class=\"%s\" style=\"display: none;\"><td></td>", namespace[i].name);
 					httpd_resp_send_chunk(req, buf, strlen(buf));
 //key name + key type					
-					sprintf(buf, "<td>%s</td><td id=\"[%d][%d]-type\" name=\"%d\">%s</td>", nvskey[j].name, i, j, nvskey[j].type, keydef.typestr);
+					sprintf(buf, "<td id=\"[%d][%d]-name\">%s</td><td id=\"[%d][%d]-type\" name=\"%d\">%s</td>", i, j, nvskey[j].name, i, j, nvskey[j].type, keydef.typestr);
 					httpd_resp_send_chunk(req, buf, strlen(buf));
 //length					
-					if(nvskey[j].type >= NVS_TYPE_STR)
-						sprintf(buf, "<td id=\"[%d][%d]-len\">%d</td>", i, j, keydef.len);
-					else
-						sprintf(buf, "<td id=\"[%d][%d]-len\">%d</td>", i, j, nvskey[j].size);
+					sprintf(buf, "<td id=\"[%d][%d]-len\">%d</td>", i, j, nvskey[j].size);
 					httpd_resp_send_chunk(req, buf, strlen(buf));
 // key value
 					if(nvskey[j].type < NVS_TYPE_STR)
@@ -344,10 +351,10 @@ esp_err_t nvs_get_handler(httpd_req_t *req)
 							httpd_resp_send_chunk(req, buf, strlen(buf));
 							}
 						sprintf(buf,"\
-<button id=\"dump\" onclick=\"dump()\">Dump to...</button>&nbsp;&nbsp;&nbsp;\
+<button id=\"dump\" onclick=\"dump(\'[%d][%d]\')\">Dump to...</button>&nbsp;&nbsp;&nbsp;\
 <button id=\"upload\" type=\"button\" onclick=\"document.getElementById('[%d][%d]-file').click()\">Update from file</button>&nbsp;\
 <label id=\"[%d][%d]-ud\"></label>\
-<input id=\"[%d][%d]-file\" type=\"file\" onchange=\"loadf('[%d][%d]')\" style=\"display: none;\"><br>&nbsp;</td>", i, j, i, j, i, j, i, j);
+<input id=\"[%d][%d]-file\" type=\"file\" onchange=\"loadf('[%d][%d]')\" style=\"display: none;\"><br>&nbsp;</td>", i, j, i, j, i, j, i, j, i, j);
 						httpd_resp_send_chunk(req, buf, strlen(buf));
 						}
 // key checkbox

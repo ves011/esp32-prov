@@ -28,6 +28,7 @@
 #include "handlers.h"
 #include "nvs_editor.h"
 #include "ws_client_handler.h"
+#include "nvsop.h"
 #include "file_server.h"
 
 /* Max length a file path can have on storage */
@@ -220,6 +221,7 @@ esp_err_t start_file_server(const char *base_path)
 	    .handler   = root_update_handler
 		};
 	httpd_register_uri_handler(server, &roota);
+/*	
 	static const httpd_uri_t setboot = 
 		{
 	    .uri       = "/sb",
@@ -227,6 +229,7 @@ esp_err_t start_file_server(const char *base_path)
 	    .handler   = set_boot_handler
 		};
 	httpd_register_uri_handler(server, &setboot);
+*/
 	static const httpd_uri_t ws = {
         .uri        = "/ws",
         .method     = HTTP_GET,
@@ -248,7 +251,7 @@ esp_err_t start_file_server(const char *base_path)
 
     /* URI handler for uploading files to server */
     httpd_uri_t file_upload = {
-        .uri       = "/upload/*",   // Match all URIs of type /upload/path/to/file
+        .uri       = PART_UPLOAD"*",   // Match all URIs of type /upload/path/to/file
         .method    = HTTP_POST,
         .handler   = flashing_post_handler,
         .user_ctx  = server_data    // Pass server data as context
@@ -263,6 +266,15 @@ esp_err_t start_file_server(const char *base_path)
         .user_ctx  = server_data    // Pass server data as context
     };
     httpd_register_uri_handler(server, &nvs_editor);
+    
+    /* URI handler for getting nvs blob key */
+    httpd_uri_t nvsk_download = {
+        .uri       = NVSK_DOWNLOAD"*",  // Match all URIs of type /path/to/file
+        .method    = HTTP_GET,
+        .handler   = nvskey_get_handler,
+        .user_ctx  = server_data    // Pass server data as context
+    };
+    httpd_register_uri_handler(server, &nvsk_download);
 
     /* URI handler for deleting files from server */
     //httpd_uri_t file_delete = {

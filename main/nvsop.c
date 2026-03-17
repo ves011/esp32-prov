@@ -19,6 +19,7 @@
 #include <nvs.h>
 #include "esp_partition.h"
 #include "freertos/idf_additions.h"
+#include "handlers.h"
 #include "lwip/opt.h"
 #include "project_specific.h"
 #include "common_defines.h"
@@ -576,7 +577,7 @@ void nvs_update_task(void *pvParameters)
 								ESP_LOGI(TAG, "Error updating key %s (%d)", esp_err_to_name(ret), ret);
 							}
 						}
-					else if(rcv_keyval[i].type == NVS_TYPE_STR)
+					else if(rcv_keyval[i].type == NVS_TYPE_STR || rcv_keyval[i].type == NVS_TYPE_BLOB)
 						{
 						memcpy(rcv_keyval[i].recvb + rval.rcv_chunks * RCV_CHUNK_SIZE, rval.recvb, rval.len);
 						rcv_keyval[i].rcvlen += rval.len;
@@ -609,10 +610,16 @@ void nvs_update_task(void *pvParameters)
 							rcv_keyval[i].state = UPDATE_INPROGRESS;
 							}	
 						}
+					
 					if(rcv_keyval[i].state == UPDATE_COMPLETE)
 						{
+						char berr[40];
+						if(ret == -0x200000)
+							sprintf(berr, "size mismatch: expected %d, received %d", rcv_keyval[i].len, rcv_keyval[i].rcvlen);
+						else
+							strcpy(berr, esp_err_to_name(ret));
 						sprintf(buf, "update key\1[%d][%d]\1%s\1%d\1%s\1", 
-								rcv_keyval[i].idxns, rcv_keyval[i].idxkey, nvskey[rcv_keyval[i].idxkey].name, ret, esp_err_to_name(ret));
+								rcv_keyval[i].idxns, rcv_keyval[i].idxkey, nvskey[rcv_keyval[i].idxkey].name, ret, berr);
 						send_strmsg(buf);	
 						if(rcv_keyval[i].recvb)
 							free(rcv_keyval[i].recvb);
@@ -679,11 +686,9 @@ int nvs_set_val(int type, nvs_handle_t handle, char *name, int len, void *val)
 			*(char *)(val + len) = 0;
 			ret = nvs_set_str(handle, name, val);
 			break;
-/*			
 		case NVS_TYPE_BLOB:
-			ret = nvs_set_blob(handle, name, b, 1);
+			ret = nvs_set_blob(handle, name, val, len);
 			break;
-		*/
 		}
 	if(ret == ESP_OK)
 		nvs_commit(handle);
@@ -707,3 +712,47 @@ int erase_nvs_key(char *ns, char *key)
 		}
 	return ret;
 	} 
+	
+esp_err_t nvskey_get_handler(httpd_req_t *req)
+	{
+    char *buf, berr[60], bmsg[120];
+    int ret = ESP_FAIL, idxn, idxk;
+    nvs_handle_t nvsh;
+	sscanf(req->uri + strlen(NVSK_DOWNLOAD), "[%d][%d]", &idxn, &idxk);
+	ESP_LOGI(TAG, "uri: %s /msg: %s / idxn: %d / idxk: %d", req->uri, bmsg, idxn, idxk);
+	if(idxk < nkeys && nvskey[idxk].type == NVS_TYPE_BLOB)
+		{
+		buf = calloc(nvskey[idxk].size, 1);
+		if(buf)
+			{
+			ret = nvs_open_from_partition(nvs_selpart, namespace[idxn].name, NVS_READONLY, &nvsh);
+			if(ret == ESP_OK)
+				{
+				ret = nvs_get_blob(nvsh, nvskey[idxk].name, buf, &nvskey[idxk].size);
+				if(ret == ESP_OK)
+					{
+					ret = httpd_resp_send_chunk(req, buf, nvskey[idxk].size);
+					if(ret == ESP_OK)
+						ESP_LOGI(TAG, "key dump complete");
+					httpd_resp_send_chunk(req, NULL, 0);
+					}
+				}
+			}
+		else
+			strcpy(berr, "cannot allocate memory to read BLOB data");
+		}
+	else
+		sprintf(berr,  "invalid key index or key type not BLOB (%d)", idxk);
+
+	if(ret == ESP_FAIL)
+		ESP_LOGI(TAG, "%s", berr);
+	else
+		strcpy(berr, esp_err_to_name(ret));
+	
+	ESP_LOGI(TAG, "dump key: %s", berr);
+	sprintf(bmsg, DUMP_KEY"\1[%d][%d]\1%s\1%d\1%s\1", idxn, idxk, nvskey[idxk].name, ret, berr);
+	send_strmsg(bmsg);
+	return ret;	
+	}
+	
+	

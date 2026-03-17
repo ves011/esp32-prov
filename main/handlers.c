@@ -370,18 +370,7 @@ void enum_partitions(httpd_req_t *req)
 			
 			sprintf(btmp, "<td style=\"text-align:right;\">0x%X</td></tr>", (unsigned int)np->size);
 			strcat(part_chunk, btmp);
-			/*
-			if(addb && !bootp)
-				{
-				strcat(part_chunk, "<td style=\"width: 100px;\"><button onclick=\"javascript:dump()\">Dump</button></td>");
-  				strcat(part_chunk, "<td style=\"width: 100px;\"><button onclick=\"javascript:flash()\">Flash</button></td>");
-  				strcat(part_chunk, "<td style=\"text-align:left;\">N/A</td></tr>");
-				}
-			else
-				strcat(part_chunk, "<td colspan=\"3\"> </td></tr>");
-			*/
 			httpd_resp_sendstr_chunk(req, part_chunk);
-
     		}
     	pit = esp_partition_next(pit);
     	}
@@ -464,7 +453,7 @@ esp_err_t ws_handler(httpd_req_t *req)
         if (ws_pkt.type == HTTPD_WS_TYPE_TEXT || ws_pkt.type == HTTPD_WS_TYPE_BINARY) 
         	{
 			char b[40];
-			strncpy(b, (char *)ws_pkt.payload, 32);
+			memcpy(b, (char *)ws_pkt.payload, 32);
 			b[32] = 0;
             ESP_LOGI(TAG, "Received packet with message: %s", b);
             msg.fd = httpd_req_to_sockfd(req);
@@ -476,7 +465,7 @@ esp_err_t ws_handler(httpd_req_t *req)
         	} 
         else if (ws_pkt.type == HTTPD_WS_TYPE_PING) 
         	{
-            // Response PONG packet to peer
+            // Respond PONG packet to peer
             ESP_LOGI(TAG, "Got a WS PING frame, Replying PONG");
             ws_pkt.type = HTTPD_WS_TYPE_PONG;
         	} 
@@ -545,7 +534,7 @@ esp_err_t flashing_post_handler(httpd_req_t *req)
 	else
 		{
 		msg.fd = httpd_req_to_sockfd(req);
-        sprintf(msg.payload.strpayload, "ustatus\1error\1Invalid partition \"%s\"\1", part);
+        sprintf(msg.payload.strpayload, USTATUS"\1error\1Invalid partition \"%s\"\1", part);
         msg.len = strlen(msg.payload.strpayload); 
         xQueueSend(ws_msg_queue, &msg, pdMS_TO_TICKS(20));
         httpd_resp_set_status(req, "303 file size mismatch");
@@ -621,7 +610,7 @@ esp_err_t flashing_post_handler(httpd_req_t *req)
             Respond with 500 Internal Server Error */
             httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Failed to receive file");
             msg.fd = httpd_req_to_sockfd(req);
-            sprintf(msg.payload.strpayload, "ustatus\1error\1ESP failed to receive file\1");
+            sprintf(msg.payload.strpayload, USTATUS"\1error\1ESP failed to receive file\1");
             msg.len = strlen(msg.payload.strpayload); 
             xQueueSend(ws_msg_queue, &msg, pdMS_TO_TICKS(20));
             return ESP_FAIL;
@@ -636,7 +625,7 @@ esp_err_t flashing_post_handler(httpd_req_t *req)
 			return ESP_OK;
 			}
         msg.fd = httpd_req_to_sockfd(req);
-        sprintf(msg.payload.strpayload, "ustatus\1progress\1%d\1", rcv * 100 / size); 
+        sprintf(msg.payload.strpayload, USTATUS"\1progress\1%d\1", rcv * 100 / size); 
 		msg.len = strlen(msg.payload.strpayload);
         xQueueSend(ws_msg_queue, &msg, pdMS_TO_TICKS(20));
         rcv += received;
@@ -669,7 +658,7 @@ esp_err_t dump_get_handler(httpd_req_t *req)
 		}
 	bsize = 5000;
 	strncpy(buf, req->uri, 30);
-	strcpy(pname, req->uri + strlen("/download/"));
+	strcpy(pname, req->uri + strlen(PART_DOWNLOAD));
 	ESP_LOGI(TAG, "download handler: %s %d", pname, strlen(req->uri));
 	
 	const esp_partition_t *np = NULL;
@@ -695,7 +684,7 @@ esp_err_t dump_get_handler(httpd_req_t *req)
 				// Abort sending file 
                 httpd_resp_send_chunk(req, NULL, 0);
 	            msg.fd = httpd_req_to_sockfd(req);
-    	        sprintf(msg.payload.strpayload, "dstatus\1progress\1error reading partition\n%s\1", esp_err_to_name(ret));
+    	        sprintf(msg.payload.strpayload, DSTATUS"\1progress\1error reading partition\n%s\1", esp_err_to_name(ret));
         	    msg.len = strlen(msg.payload.strpayload); 
             	xQueueSend(ws_msg_queue, &msg, pdMS_TO_TICKS(20));
 				return ESP_OK;
@@ -710,7 +699,7 @@ esp_err_t dump_get_handler(httpd_req_t *req)
                 // Respond with 500 Internal Server Error 
                 httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Failed to send file");
                 msg.fd = httpd_req_to_sockfd(req);
-    	        sprintf(msg.payload.strpayload, "dstatus\1progress\1httpd error sending file\n%s\1", esp_err_to_name(ret));
+    	        sprintf(msg.payload.strpayload, DSTATUS"\1progress\1httpd error sending file\n%s\1", esp_err_to_name(ret));
         	    msg.len = strlen(msg.payload.strpayload); 
             	xQueueSend(ws_msg_queue, &msg, pdMS_TO_TICKS(20));
                	return ESP_FAIL;

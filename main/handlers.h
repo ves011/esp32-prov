@@ -17,6 +17,10 @@
 #define SCRATCH_BUFSIZE  8192
 #define MAX_UPDPART		20
 
+#define NVSK_DOWNLOAD		"/nvskdownload/"
+#define PART_DOWNLOAD		"/download/"
+#define PART_UPLOAD			"/upload/"
+
 typedef struct
 	{
 	int boot;

@@ -101,9 +101,9 @@ function ws_receive(msg)
 			alert(params[2]);
 		else if(params[1] == "confirm")
 			{
-			var pName = document.getElementById("parts").value;
-			if(confirm('Erasing ' + pName + ' all data will be lost!\nPress "OK" to continue') == true)
-				ws_send("erase" + '\1confirmok\1' + pName + '\1');
+			//var pName = document.getElementById("parts").value;
+			if(confirm('Erasing ' + params[2] + ' all data will be lost!\nPress "OK" to continue') == true)
+				ws_send("erase" + '\1confirmok\1' + params[2] + '\1');
 			}
 		else if(params[1] == "progress")
 			alert(params[2]);
@@ -159,7 +159,7 @@ function dump()
 	// Create a link and set the URL using `createObjectURL`
 	//document.getElementById("dump").style.cursor = "wait";
 	//document.body.style.cursor = "wait";
-	document.querySelector("html").classList.add("wait");
+	//document.querySelector("html").classList.add("wait");
 	var name = document.getElementById("parts").value;
 	//const file = new File([""], name + ".bin");
   	const link = document.createElement("a");
@@ -232,26 +232,14 @@ function pageload()
   			</select><label style="font-size: 10px;">(Only partitions which can be updated)</label>
 			</td>
   		</tr>
-  		<tr><td>
-			<button type="submit" onclick="javascript:setBoot()">Set Boot</button>
-  		</td></tr>
+  		<tr><td><button type="submit" onclick="javascript:setBoot()">Set Boot</button></td></tr>
   		<tr>
-  		<td><button id="upload" type="button" onclick="upload()">Flash</button></td>
-  		<td><input id="newfile" type="file" style="width:100%;"></td>
-		<td id="ustatus"></td>
+			<td><button id="upload" type="button" onclick="upload()">Flash</button></td>
+			<td><input id="newfile" type="file" style="width:100%;"></td>
+			<td id="ustatus"></td>
   		</tr>
-  		<tr>
-  		<td>
-  			<!--<button><a style="text-decoration: none; color: inherit;" href="" download>Dump</a></button>-->
-			<button id="dump" onclick="dump()">Dump</button>
-  		</td>
-  		</tr>
-		<tr>
-  		<td>
-  			<!--<button><a style="text-decoration: none; color: inherit;" href="" download>Dump</a></button>-->
-			<button id="erase" onclick="erase()">Erase</button>
-  		</td>
-  		</tr>
+  		<tr><td><button id="dump" onclick="dump()">Dump</button></td></tr>
+		<tr><td><button id="erase" onclick="erase()">Erase</button></td></tr>
   	</table>
 </div>
 <br><br>

@@ -27,10 +27,22 @@ tr {border-bottom: 1px solid black;}
 
 </style>
 <script>
+
 var c_connected = false;
 var websocket  = null;
 var updid = [];
 const chunk_size = 512;
+const NVS_TYPE_U8    = 0x01;  /*!< Type uint8_t */
+const NVS_TYPE_I8    = 0x11;  /*!< Type int8_t */
+const NVS_TYPE_U16   = 0x02;  /*!< Type uint16_t */
+const NVS_TYPE_I16   = 0x12;  /*!< Type int16_t */
+const NVS_TYPE_U32   = 0x04;  /*!< Type uint32_t */
+const NVS_TYPE_I32   = 0x14;  /*!< Type int32_t */
+const NVS_TYPE_U64   = 0x08;  /*!< Type uint64_t */
+const NVS_TYPE_I64   = 0x18;  /*!< Type int64_t */
+const NVS_TYPE_STR   = 0x21;  /*!< Type string */
+const NVS_TYPE_BLOB  = 0x42;  /*!< Type blob */
+const NVSK_DOWNLOAD	 = "/nvskdownload/";
 function ws_send(msg)
 	{
 	if(websocket.readyState == WebSocket.OPEN)
@@ -55,9 +67,9 @@ function ws_receive(msg)
             {
             if(updid[i].id == params[1])
                 {
-                var len = document.getElementById(params[1] + "-len").innerHTML;
-                type = document.getElementById(params[1] + "-type").attributes.name.value;
-                if(type < 33) //numeric value
+                var len = Number(document.getElementById(params[1] + "-len").innerHTML);
+                type = Number(document.getElementById(params[1] + "-type").attributes.name.value);
+                if(type < NVS_TYPE_STR) //numeric value
                     {
                     //update val -> token
                     //id of the element
@@ -72,15 +84,14 @@ function ws_receive(msg)
                     view.setBigUint64(pre.length, v);
                     ws_send(buf);
                     }
-                /*
-                else if(type == 33) // NVS_TYPE_STR
+                else if(type == NVS_TYPE_STR) // NVS_TYPE_STR
                     {
                     var l = 0, pos = 0, n = 0;
                     var b = document.getElementById(params[1]).value;
                     while (pos < len)
                         {
-                        if(pos + 512 < b.length)
-                            l = 512;
+                        if(pos + chunk_size < b.length)
+                            l = chunk_size;
                         else 
                             l = b.length - pos;
                         var buf1 = "update val" + "\1" + params[1] + "\1" + n + "\1" + l + "\1";
@@ -90,39 +101,44 @@ function ws_receive(msg)
                         n++;
                         }
                     }
-                else if(type == 64) //BLOB
+                else if(type == NVS_TYPE_BLOB) //BLOB
                     {
                     var l = 0, pc = 0, n = 0, pf = 0;
                     var b = document.getElementById(params[1]).value;
                     var num = b.split(/(?:-| |\n)+/);
-                    len = document.getElementById(params[1] + "-len").innerHTML;
-                    var bb = new ArrayBuffer(len);
-                    while(ps < len)
+                    len = Number(document.getElementById(params[1] + "-len").innerHTML);
+                    if(len < chunk_size) var lc = len;
+                    else lc = chunk_size;
+                    var pre = (new TextEncoder()).encode("update val" + "\1" + params[1] + "\1" + n + "\1" + lc + "\1");
+                    var bb = new ArrayBuffer(lc + pre.length);
+                    var view = new DataView(bb);
+                    while(pf< len)
                         {
-                        if(pos + 512 < len)
-                            l = 512;
-                        else 
-                            l = len - pos;
-                        }
-                    var bb = new ArrayBuffer();
-                    while(pf < len)
-                        {
-                        bb.push(parseInt(num[pf], 16));
-                        pf++;
-                        pc++;
-                        if(pc == 512)
+                        view.setUint8(pc + pre.length, parseInt(num[pf], 16));
+                        pf++; pc++;
+                        if(pc == chunk_size)
                             {
-                            var pre = (new TextEncoder()).encode("update val" + "\1" + params[1] + "\1" + n + "\1" + "512" + "\1");
-                            var msg = pre.concat(bb);
-                            ws_send(msg);
+                            for(var i = 0; i < pre.length; i++)
+                                view.setUint8(i, pre[i]);
+                            ws_send(bb);
                             pc = 0;
+                            n++;
+                            if(pf + chunk_size < len)
+                                lc = chunk_size;
+                            else
+                                lc = (len - pf);
+                            pre = (new TextEncoder()).encode("update val" + "\1" + params[1] + "\1" + n + "\1" + lc + "\1");
+                            var bb = new ArrayBuffer(lc + pre.length);
+                            var view = new DataView(bb);
                             }
                         }
                     if(pc > 0)
                         {
+                        for(i = 0; i < pre.length; i++)
+                            view.setUint8(i, pre[i]);
+                        ws_send(bb);
                         }
                     }
-                */
                 break;
                 }
             }
@@ -130,7 +146,15 @@ function ws_receive(msg)
     else if(params[0] == "update key" && params.length >= 5)
         {
         if(params[3] == 0) //success
+            {
             document.getElementById(params[1]).style.color = "black";
+            for(i = 0; i < updid.length; i++)
+                {
+                if(updid[i].id == params[1])
+                    updid.splice(i, 1);
+                break;
+                }
+            }
         else
             alert('Error updating key "' + params[2] + '"' + '\n' + params[4]);
         }
@@ -160,7 +184,7 @@ function commitc()
     for(i = 0; i < updid.length; i++)
         {
         type = document.getElementById(updid[i].id + "-type").attributes.name.value;
-        len = document.getElementById(updid[i].id + "-len").innerHTML;
+        len = Number(document.getElementById(updid[i].id + "-len").innerHTML);
         var nr_chunks = len >> 9;
         if(nr_chunks == 0) 
             nr_chunks++;
@@ -195,13 +219,13 @@ function pageload()
         {
         cb[i].addEventListener("click", setSel);
         }
-/*
+
     const wsUri = window.location.origin + "/ws";
 	websocket = new WebSocket(wsUri);
 	websocket.addEventListener("open", () => {console.log("CONNECTED"); c_connected = true;});
 	websocket.addEventListener("close", (event) => {console.log("DISCONNECTED: " + event.data); c_connected = false;});
 	websocket.onmessage = (msg) => {ws_receive(msg);};
-*/
+
     }
 function setSel(e)
     {
@@ -457,8 +481,8 @@ function createnk()
     var alertstr = "";
     var newns = document.getElementById("newns").value;
     var newkey = document.getElementById("newkey").value;
-    var type = document.getElementById("type").value;
-    var kl = document.getElementById("nk_len").value;
+    var type = Number(document.getElementById("type").value);
+    var kl = Number(document.getElementById("nk_len").value);
     var val = document.getElementById("phv").value;
     if(newns.length > 16 || newns.length == 0)
         alertstr += "namespace length is 0 or exceeds NVS_NS_NAME_MAX_SIZE (16)"  + "\n";
@@ -466,10 +490,10 @@ function createnk()
         alertstr += "key name length is 0 or exceeds NVS_KEY_NAME_MAX_SIZE (16)" + "\n";
     if(Number(kl) <= 0)
         alertstr += "length must be 1 or larger" + "\n";
-    if(type == 33 && kl >= 4000)
+    if(type == NVS_TYPE_STR && kl >= 4000)
         alertstr += "for NVS_TYPE_STR key length must less than 4000" + "\n";
-    if(val.length > 512)
-        alert += "placeholder value is limited by application to max 512" + "\n";
+    if(val.length > chunk_size)
+        alert += "placeholder value is limited by application to max " + chunk_size + "\n";
     if(alertstr.length == 0)
         ws_send("createkey" + "\1"+ newns + "\1" + newkey + "\1" + type + "\1" + kl + "\1" + val + "\1");
     else
@@ -505,46 +529,30 @@ function delsel()
     }
 function dump(id)
     {
-    var l = 0, pc = 0, n = 0, pf = 0;
-    //params[1] = id;
-    var b = document.getElementById(id).value;
-    var num = b.split(/(?:-| |\n)+/);
-    len = document.getElementById(id + "-len").innerHTML;
-    /*
-    while(ps < len)
-        {
-        if(pos + 3 < len)
-            l = 3;
-        else 
-            l = len - pos;
-        }
-    */
-    if(len < 3)
-        l = len
-    else
-        l = 3
+	// Create a link and set the URL using `createObjectURL`
+	//document.getElementById("dump").style.cursor = "wait";
+	//document.body.style.cursor = "wait";
+	//document.querySelector("html").classList.add("wait");
+	var name = document.getElementById(id + "-name").innerHTML;
+	//const file = new File([""], name + ".bin");
+  	const link = document.createElement("a");
+	link.style.display = "none";
+	link.href = location.origin + NVSK_DOWNLOAD + id; 
+	//link.href = URL.createObjectURL(file);
 
-    var pre = (new TextEncoder()).encode("update val" + "\1" + id + "\1" + n + "\1" + l + "\1");
-    var bb = new ArrayBuffer(l + pre.length);
-    while(pf < len)
-        {
-        bb[pc + pre.length] = parseInt(num[pf], 16);
-        pf++;
-        pc++;
-        if(pc == 3)
-            {
-            for(var i = 0; i < pre.length; i++)
-                bb[i] = pre[i];
-            pc = 0;
-            n++;
-            pre = (new TextEncoder()).encode("update val" + "\1" + id + "\1" + n + "\1" + l + "\1");
-            var bb = new ArrayBuffer(l + pre.length);
-            }
-        }
-    if(pc > 0)
-        {
-        }
-    }
+	link.download = name + ".bin";
+
+  // It needs to be added to the DOM so it can be clicked
+  	document.body.appendChild(link);
+  	link.click();
+
+	// To make this work on Firefox we need to wait
+	// a little while before removing it.
+	setTimeout(() => {
+    	URL.revokeObjectURL(link.href);
+    	link.parentNode.removeChild(link);
+  		}, 100);
+	}
 </script>
 </head>
 <body onLoad="pageload()">		
@@ -659,7 +667,7 @@ insertkeys
     </tr>
     <tr class="ns1" style="display: none;">
         <td></td>
-        <td>key 1</td>
+        <td id="[0][0]-name">key 1</td>
         <td id="[0][0]-type" name="66">NVS_TYPE_BLOB</td>
         <td id="[0][0]-len">10</td>
         <td>
