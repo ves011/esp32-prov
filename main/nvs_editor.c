@@ -128,7 +128,7 @@ esp_err_t nvs_get_handler(httpd_req_t *req)
 	keydef_t keydef;
 	buf = malloc(1024);
 	extern char nvs_page_start[] asm("_binary_nvseditor_html_start");
-    extern char nvs_page_end[]   asm("_binary_nvseditor_html_end");
+    //extern char nvs_page_end[]   asm("_binary_nvseditor_html_end");
     //insert_value("devName", dev_conf.dev_name);
    // const size_t nvs_page_size = (nvs_page_end - nvs_page_start);
     
@@ -312,7 +312,7 @@ esp_err_t nvs_get_handler(httpd_req_t *req)
 							{
 							if(nvs_get_blob(nvsh, nvskey[j].name, bstring, &keydef.len) == ESP_OK)
 								{
-								int is = 0, ic = 0;
+								int is = 0;
 								char bhex[6];
 								sprintf(buf, "<td><textarea id=\"[%d][%d]\" class=\"hed\" style=\"width: 675px;resize: vertical;\" rows=\"1\">", i, j);
 								httpd_resp_send_chunk(req, buf, strlen(buf));
@@ -330,10 +330,7 @@ esp_err_t nvs_get_handler(httpd_req_t *req)
 										strcat(buf, "\n");
 										httpd_resp_send_chunk(req, buf, strlen(buf));
 										buf[0] = 0;
-										ic = 0;
 										}
-									//is++;
-
 									}
 								strcat(buf, "</textarea><br>");
 								httpd_resp_send_chunk(req, buf, strlen(buf));

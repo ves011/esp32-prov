@@ -41,13 +41,34 @@ server to client 	ERASESTATUS\1progress\1progress message\1
 #define ERASE		"erase"
 #define ERASESTATUS	"erasestatus"
 
-#define CREATEKEY		"createkey"		// create NVS key/value pair 
+// create NVS key/value pair	- client2server
+// responds with ESP_OK/ESP_FAIL
+#define CREATEKEY		"createkey"
+
+/*
+update key flow
+1. client 2 server		UPD_REQUEST\1keyID\1length\1#chunks\1
+2. server 2 client		SEND_VAL\1keyID
+3. client 2 server		UPDATE_VAL\1keyID\1#chunk\1length\1
+	for NVS_TYPE_STR or BLOB step3 repeats util entire key value is sent
+4.server 2 client		UPDATE_KEY\1keyID\1keyName\1error code\1error string
+*/
 #define UPD_REQUEST		"update req"
 #define SEND_VAL		"send val"
 #define UPDATE_VAL		"update val"
+#define UPDATE_KEY		"update key"
+
+/*
+delete key flow
+client 2 server			DELETE_NS\1namespaceName\1
+						DELETE_KEY\1keyID\1
+server 2 client			DELETE_KEY_RESP\1key|namespace name\1error code\1error string\1
+*/
 #define DELETE_NS		"delete ns"
 #define DELETE_KEY		"delete key"
 #define DELETE_KEY_RESP	"delete key resp"
+
+//server 2 client		DUMP_KEY\1keyID\1keyName\1error code\1error string\1
 #define DUMP_KEY		"dump key"
 
 

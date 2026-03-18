@@ -618,7 +618,7 @@ void nvs_update_task(void *pvParameters)
 							sprintf(berr, "size mismatch: expected %d, received %d", rcv_keyval[i].len, rcv_keyval[i].rcvlen);
 						else
 							strcpy(berr, esp_err_to_name(ret));
-						sprintf(buf, "update key\1[%d][%d]\1%s\1%d\1%s\1", 
+						sprintf(buf, UPDATE_KEY"\1[%d][%d]\1%s\1%d\1%s\1", 
 								rcv_keyval[i].idxns, rcv_keyval[i].idxkey, nvskey[rcv_keyval[i].idxkey].name, ret, berr);
 						send_strmsg(buf);	
 						if(rcv_keyval[i].recvb)

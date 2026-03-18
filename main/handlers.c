@@ -22,15 +22,15 @@
 #include "freertos/idf_additions.h"
 #include "freertos/projdefs.h"
 #include "project_specific.h"
-#include "common_defines.h"
+//#include "common_defines.h"
 #include "cmd_wifi.h"
-#include "utils.h"
+//#include "utils.h"
 #include "keep_alive.h"
 #include "ws_client_handler.h"
 #include "handlers.h"
 
 const char *TAG = "handler";
-static int genconf_update(char *params);
+//static int genconf_update(char *params);
 static void enum_partitions(httpd_req_t *req);
 static void insert_part_options(httpd_req_t *req);
 int npart;
@@ -82,13 +82,13 @@ static esp_err_t favicon_get_handler(httpd_req_t *req)
 
 esp_err_t root_get_handler(httpd_req_t *req)
 	{
-	char buf[32];
+	//char buf[32];
 	char filepath[512];
 	char *pchar = NULL, *last_pchar;
 	extern char main_page_start[] asm("_binary_main_html_start");
     extern char main_page_end[]   asm("_binary_main_html_end");
     //insert_value("devName", dev_conf.dev_name);
-    const size_t main_page_size = (main_page_end - main_page_start);
+    //const size_t main_page_size = (main_page_end - main_page_start);
     
     if(restart_in_progress == 1)
     	esp_restart();
@@ -172,67 +172,6 @@ esp_err_t root_update_handler(httpd_req_t *req)
 	return ESP_OK;
 	}
 /*
-int genconf_update(char *params)
-	{
-	int ret = ESP_OK;
-	dev_config_t dc;
-	//params[strlen(params) - 1] = '&';
-	char btemp[32], *pstr;
-	pstr = strtok(params, "&");
-	while(pstr)
-		{
-		if(strstr(pstr, DEVNAME"="))
-			strcpy(dc.dev_name, pstr + strlen(DEVNAME"="));
-		else if(strstr(pstr, DEVID"="))
-			dc.dev_id = atoi(pstr + strlen(DEVID"="));
-		else if(strstr(pstr, STASSID"="))
-			strcpy(dc.sta_ssid, pstr + strlen(STASSID"="));
-		else if(strstr(pstr, STAPASS"="))
-			strcpy(dc.sta_pass, pstr + strlen(STAPASS"="));
-		else if(strstr(pstr, APSSID"="))
-			strcpy(dc.ap_ssid, pstr + strlen(APSSID"="));
-		else if(strstr(pstr, APPASS"="))
-			strcpy(dc.ap_pass, pstr + strlen(APPASS"="));
-		else if(strstr(pstr, APIP"="))
-			strcpy(btemp, pstr + strlen(APIP"="));
-		pstr = strtok(NULL, "&");
-		}
-	strcat(btemp, ".");
-	ESP_LOGI(TAG, "btemp: %s", btemp);
-	pstr = strtok(btemp, ".");
-	if(pstr)
-		dc.ap_a = atoi(pstr);
-	pstr = strtok(NULL, ".");
-	if(pstr)
-		dc.ap_b = atoi(pstr);
-	pstr = strtok(NULL, ".");
-	if(pstr)
-		dc.ap_c = atoi(pstr);
-	pstr = strtok(NULL, ".");
-	if(pstr)
-		dc.ap_d = atoi(pstr);
-		
-	if(strcmp(dev_conf.dev_name, dc.dev_name) ||
-		dev_conf.dev_id != dc.dev_id ||
-		strcmp(dev_conf.sta_ssid, dc.sta_ssid) ||
-		strcmp(dev_conf.sta_pass, dc.sta_pass) ||
-		strcmp(dev_conf.ap_ssid, dc.ap_ssid) ||
-		strcmp(dev_conf.ap_pass, dc.ap_pass))
-		{
-		dc.cs = dev_conf.cs;
-		memcpy(&dev_conf, &dc, sizeof(dev_config_t));
-		rw_dev_config(PARAM_WRITE);
-		}
-	ESP_LOGI(TAG, "genconf update : %s %d %s %s %s %s %d.%d.%d.%d", 
-		dc.dev_name, dc.dev_id, dc.sta_ssid, dc.sta_pass, dc.ap_ssid, dc.ap_pass, dc.ap_a, dc.ap_b, dc.ap_c, dc.ap_d);
-	return ret;
-	}	
-esp_err_t main_post_handler(httpd_req_t *req)
-	{
-	ESP_LOGI(TAG, "main_post_handler %s", req->uri);
-	return ESP_OK;
-	}
-*/
 esp_err_t set_boot_handler(httpd_req_t *req)
 	{
 	ESP_LOGI(TAG, "set_boot_handler %s", req->uri);
@@ -243,7 +182,7 @@ esp_err_t set_boot_handler(httpd_req_t *req)
 	size_t off = 0;
 	while (off < req->content_len) 
 		{
-		/* Read data received in the request */
+		// Read data received in the request 
 		int ret = httpd_req_recv(req, buf + off, req->content_len - off);
 		if (ret <= 0) 
 			{
@@ -293,6 +232,7 @@ esp_err_t set_boot_handler(httpd_req_t *req)
     httpd_resp_sendstr(req, "Update success");
 	return ESP_OK;
 	}
+*/	
 void enum_partitions(httpd_req_t *req)
 	{
 	char btmp[60];
@@ -445,8 +385,6 @@ esp_err_t ws_handler(httpd_req_t *req)
         free(buf);
         return wss_keep_alive_client_is_active(httpd_get_global_user_ctx(req->handle),
                 httpd_req_to_sockfd(req));
-
-    // If it was a TEXT message, just echo it back
     	} 
     else if (ws_pkt.type == HTTPD_WS_TYPE_TEXT || ws_pkt.type == HTTPD_WS_TYPE_BINARY || ws_pkt.type == HTTPD_WS_TYPE_PING || ws_pkt.type == HTTPD_WS_TYPE_CLOSE) 
     	{

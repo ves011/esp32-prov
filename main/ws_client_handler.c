@@ -202,9 +202,9 @@ void ws_handler_task(void *pvParameters)
 										strcpy(phv, pstr);
 										ret = create_nvs_key(NULL, ns, key, type, len, phv);
 										if(ret == ESP_OK)
-											sprintf(buf, "createkey\1ESP_OK\1New key created successfully\1");
+											sprintf(buf, CREATEKEY"\1ESP_OK\1New key created successfully\1");
 										else
-											sprintf(buf, "createkey\1ESP_FAIL\1%s\1", esp_err_to_name(ret));
+											sprintf(buf, CREATEKEY"\1ESP_FAIL\1%s\1", esp_err_to_name(ret));
 										send_strmsg(buf);
 										}
 									}
@@ -215,7 +215,6 @@ void ws_handler_task(void *pvParameters)
 				}
 			else if(strcmp(pstr, UPD_REQUEST) == 0)
 				{
-				
 				pstr = strtok(NULL, "\1");
 				if(pstr)
 					{
