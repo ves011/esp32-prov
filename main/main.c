@@ -42,15 +42,10 @@ void app_main(void)
 	register_system();
 	register_wifi();
 	register_nvsop();
-	if(!wifi_join("gnetR1-24", "Perdita98", JOIN_TIMEOUT_MS))
-		{
-		ESP_LOGI(TAG, "Failed to connect to %s", dev_conf.sta_ssid);
-		}
-	else
-		{
-		ESP_LOGI(TAG, "Connected to %s", dev_conf.sta_ssid);
-		start_file_server(BASE_PATH);
-		}
+
+	wifi_join(NULL, NULL, JOIN_TIMEOUT_MS);
+
+	start_file_server(BASE_PATH);
 #ifdef WITH_CONSOLE
 	esp_console_repl_t *repl = NULL;
     esp_console_repl_config_t repl_config = ESP_CONSOLE_REPL_CONFIG_DEFAULT();

@@ -1,17 +1,11 @@
 # ESP32-prov
 An extensive provisioning tool for ESP32 with web interface
 It allows 
-- partition operations: flash, dump, erase 
+- partition operations: flash, dump, erase, set boot 
 - NVS in place editor: create/delete keys, edit value, dump/load BLOB type keys to/from file
 - SPIFFS or FAT file system operations: list, upload, download, delete files
 
-## Partition table operations
-
-List of partitions, as they are defined in the .csv file used to generate partition table.
-Selectable partition combo which includes only partitions whose content can be modified. This includes partitions which have the following subtype: NVS, OTA_xx, APP, SPIFFS, FAT
-
-The operations are applied to the selected partition in the combo.
-If partition subtype NVS is present in the list, it can be edited in detail in "nvs_editor" page.
+ESP32 runs the HTTP and websockets server and generates the pages. The web browser client interacts with the ESP32 server via http requests and websocket messages.
 
 ## HTTP URI handlers
 All the uri handlers are registered in function **start_file_server()** (file_server.c file)
@@ -61,6 +55,20 @@ HTML **body** executes onLoad="pageload()" which establish websocket communicati
         }
 
 To send/receive messages each page uses 2 javascript functions: **ws_send()** and **ws_receive()**.
+
+## Partition table operations
+
+List of partitions, as they are defined in the .csv file used to generate partition table.
+Selectable partition combo which includes only partitions whose content can be modified. This includes partitions which have the following subtype: NVS, OTA_xx, APP, SPIFFS, FAT
+
+The operations are applied to the selected partition in the combo.
+If partition subtype NVS is present in the list, it can be edited in detail in "nvs_editor" page.
+![Partition table page](./part.png)
+
+# In place NVS editor
+![Partition table page](./nvsed.png)
+
+
 
 
 

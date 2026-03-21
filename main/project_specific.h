@@ -11,8 +11,8 @@
 #define WITH_CONSOLE
 #define CONFIG_STORE_HISTORY					1
 #define CONFIG_CONSOLE_MAX_COMMAND_LINE_LENGTH	1024
-#define WIFI_STA_ON					1
-//#define WIFI_AP_ON					1
+#define WIFI_STA_ON					0
+#define WIFI_AP_ON					1
 #define MDNS						1
 
 #define HOSTNAME			"OTA-dev"
