@@ -24,7 +24,7 @@
 #include "project_specific.h"
 //#include "common_defines.h"
 #include "cmd_wifi.h"
-//#include "utils.h"
+#include "utils.h"
 #include "keep_alive.h"
 #include "ws_client_handler.h"
 #include "handlers.h"
@@ -91,7 +91,7 @@ esp_err_t root_get_handler(httpd_req_t *req)
     //const size_t main_page_size = (main_page_end - main_page_start);
     
     if(restart_in_progress == 1)
-    	esp_restart();
+    	my_esp_restart();
     const char *filename = get_path_from_uri(filepath, "/",
                                              req->uri, sizeof(filepath));
 	ESP_LOGI(TAG, "uri: %s / fname: %s / fpath: %s", req->uri, filename, filepath);

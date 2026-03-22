@@ -17,12 +17,13 @@
 #include "argtable3/argtable3.h"
 #include "esp_console.h"
 #include <nvs.h>
-#include "esp_partition.h"
+//#include "esp_partition.h"
 #include "freertos/idf_additions.h"
 #include "handlers.h"
-#include "lwip/opt.h"
-#include "project_specific.h"
-#include "common_defines.h"
+//#include "lwip/opt.h"
+//#include "project_specific.h"
+//#include "common_defines.h"
+#include "utils.h"
 #include "ws_client_handler.h"
 #include "nvs_editor.h"
 #include "nvsop.h"
@@ -111,7 +112,7 @@ void register_nvsop(void)
     if(xTaskCreate(nvs_update_task, "recv_task", 8192, NULL, 5, &update_task_handle) != pdPASS)
 		{
 		ESP_LOGI(TAG, "Unable to create nvs update task");
-		esp_restart();
+		my_esp_restart();
 		}
 	}
 
@@ -130,11 +131,11 @@ int get_nvs_entries(char *pName)
 	nns = nkeys = 0;
 	strcpy(nvs_selpart, pName);
 	nvs_iterator_t it = NULL;
+	nvs_entry_info_t info;
  	esp_err_t res = nvs_entry_find(pName, NULL, NVS_TYPE_ANY, &it);
  	ESP_LOGI(TAG, "nvs_entry_find return: %s", esp_err_to_name(res));
 	while(res == ESP_OK) 
 		{
-		nvs_entry_info_t info;
 	    nvs_entry_info(it, &info); // Can omit error check if parameters are guaranteed to be non-NULL
 	    ESP_LOGI(TAG, "ns: %s key: %s type: %d", info.namespace_name, info.key, info.type);
 	    for(i = 0; i < nns; i++)
@@ -472,7 +473,7 @@ void nvs_update_task(void *pvParameters)
 	if(!receive_q)
 		{
 		ESP_LOGE(TAG, "Cannot create receive_q");
-		esp_restart();
+		my_esp_restart();
 		}
 	rcv_keyval = NULL;
 	while(1)

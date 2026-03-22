@@ -20,15 +20,6 @@
 #define MDNSINSTANCENAME	"OTA-dev"
 #define TCPCOMMPORT			10001
 
-
-#define DEVNAME			"devName"
-#define DEVID			"devID"
-#define STASSID			"staSSID"
-#define STAPASS			"staPass"
-#define APSSID			"apSSID"
-#define APPASS			"apPass"
-#define APIP			"apIP"
-#define GENCONFFORM		"genconf"
 #define REBOOTFORM		"reboot"
 
 

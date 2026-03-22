@@ -36,7 +36,8 @@ void app_main(void)
 	{
 	spiffs_storage_check();
 	initialize_nvs();
-	rw_dev_config(PARAM_READ);
+	//rw_dev_config(PARAM_READ);
+	get_nvs_conf();
 
 	esp_console_register_help_command();
 	register_system();

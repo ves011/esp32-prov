@@ -1,0 +1,11 @@
+key,type,encoding,value
+devcfg,namespace,,
+wifi.stassid,data,string,"gnetR1-24"
+wifi.stapass,data,string,"Perdita98"
+ap.hostname,data,string,"ota-dev"
+ap.ssid,data,string,"OTA-dev"
+ap.pass,data,string,"OTA-devpass"
+ap.ip,data,string,"192.168.253.1"
+devID,data,string,"81"
+devName,data,string,"gnetdev"
+console,data,string,"1"
