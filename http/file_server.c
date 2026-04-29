@@ -23,12 +23,13 @@
 #include "esp_log.h"
 
 #include "esp_vfs.h"
-#include "esp_spiffs.h"
+//#include "esp_spiffs.h"
 #include "esp_http_server.h"
 #include "handlers.h"
 #include "nvs_editor.h"
 #include "ws_client_handler.h"
 #include "nvsop.h"
+#include "spiffsop.h"
 #include "file_server.h"
 
 /* Max length a file path can have on storage */
@@ -275,6 +276,15 @@ esp_err_t start_file_server(const char *base_path)
         .user_ctx  = server_data    // Pass server data as context
     };
     httpd_register_uri_handler(server, &nvsk_download);
+    
+    /* URI handler for spiffs editor */
+    httpd_uri_t spiffs_editor = {
+        .uri       = "/spiffs_editor.html",   
+        .method    = HTTP_GET,
+        .handler   = spiffs_get_handler,
+        .user_ctx  = server_data    // Pass server data as context
+    };
+    httpd_register_uri_handler(server, &spiffs_editor);
 
     /* URI handler for deleting files from server */
     //httpd_uri_t file_delete = {

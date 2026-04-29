@@ -10,9 +10,12 @@ idf_component_register(
 		"../http/ws_client_handler.c"
 		"../ota-http/nvs_editor.c"
 		"../ota-http/nvsop.c"
+		"../ota-http/spiffsop.c"
 		"../../esp32_common/utils/utils.c"
 		"../../esp32_common/cmds/cmd_wifi.c"
 		"../../esp32_common/cmds/cmd_system.c"
+		"../../esp32_common/tcp/tcp_log.c"
+		"../../esp32_common/tcp/ntp_sync.c"
     INCLUDE_DIRS
 	    "."										# optional, add here public include directories
     	"../../esp32_common"
@@ -25,4 +28,5 @@ idf_component_register(
 		"../ota-http/favicon.ico" 
 		"../ota-http/main.html"
 		"../ota-http/nvseditor.html"
+		"../ota-http/spiffsed.html"
 		)

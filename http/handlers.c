@@ -256,9 +256,16 @@ void enum_partitions(httpd_req_t *req)
 				runp = true;
 
 			strcpy(part_chunk, "<tr><td>");
-			if(np->subtype == 2)
+			if(np->subtype == ESP_PARTITION_SUBTYPE_DATA_NVS)
 				{
 				strcat(part_chunk, "<a href=\"nvs_editor.html?");
+				strcat(part_chunk, np->label);
+				strcat(part_chunk, "\"/a>");
+				strcat(part_chunk, np->label);
+				}
+			else if(np->subtype == ESP_PARTITION_SUBTYPE_DATA_SPIFFS)
+				{
+				strcat(part_chunk, "<a href=\"spiffs_editor.html?");
 				strcat(part_chunk, np->label);
 				strcat(part_chunk, "\"/a>");
 				strcat(part_chunk, np->label);
@@ -271,8 +278,8 @@ void enum_partitions(httpd_req_t *req)
 				strcat(part_chunk, "(*)");
 			strcat(part_chunk, "</td><td>");
 			
-			if(np->type == 0) strcat(part_chunk, "APP</td>");
-			else if(np->type == 1) strcat(part_chunk, "DATA</td>");
+			if(np->type == ESP_PARTITION_TYPE_APP) strcat(part_chunk, "APP</td>");
+			else if(np->type == ESP_PARTITION_TYPE_DATA) strcat(part_chunk, "DATA</td>");
 			else strcat(part_chunk, "other</td>");
 			
 			if(np->subtype >= ESP_PARTITION_SUBTYPE_APP_OTA_MIN && np->subtype <= ESP_PARTITION_SUBTYPE_APP_OTA_MAX)
@@ -282,12 +289,13 @@ void enum_partitions(httpd_req_t *req)
 				strcat(part_chunk, btmp);
 				upd = true;
 				}
-			else if(np->subtype == 0)strcat(part_chunk, "<td>OTA</td>");
-			else if(np->subtype == 1)strcat(part_chunk, "<td>PHY</td>");
-			else if(np->subtype == 2){strcat(part_chunk, "<td>NVS</td>"); upd = true;}
-			else if(np->subtype == 3){strcat(part_chunk, "<td>COREDUMP</td>"); upd = true;}
-			else if(np->subtype == 0x81){strcat(part_chunk, "<td>FAT</td>"); upd = true;}
-			else if(np->subtype == 0x82){strcat(part_chunk, "<td>SPIFFS</td>"); upd = true;}
+			else if(np->subtype == ESP_PARTITION_SUBTYPE_DATA_OTA)strcat(part_chunk, "<td>OTA</td>");
+			else if(np->subtype == ESP_PARTITION_SUBTYPE_DATA_PHY)strcat(part_chunk, "<td>PHY</td>");
+			else if(np->subtype == ESP_PARTITION_SUBTYPE_DATA_NVS){strcat(part_chunk, "<td>NVS</td>"); upd = true;}
+			else if(np->subtype == ESP_PARTITION_SUBTYPE_DATA_COREDUMP){strcat(part_chunk, "<td>COREDUMP</td>"); upd = true;}
+			else if(np->subtype == ESP_PARTITION_SUBTYPE_DATA_FAT){strcat(part_chunk, "<td>FAT</td>"); upd = true;}
+			else if(np->subtype == ESP_PARTITION_SUBTYPE_DATA_SPIFFS){strcat(part_chunk, "<td>SPIFFS</td>"); upd = true;}
+			else if(np->subtype == ESP_PARTITION_SUBTYPE_DATA_LITTLEFS){strcat(part_chunk, "<td>LITTLEFS</td>"); upd = true;}
 			else strcat(part_chunk, "other</td>");
 			if(upd && npart < MAX_UPDPART)
 				{

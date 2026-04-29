@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<!--<link rel="icon" type="image/x-icon" href="/favicon.ico">-->
+<style>
+body {font-family: Arial;}
+button {width:120px}
+.shsign {text-align: center; font-weight: bold; width: 40px;}
+table {border-collapse: collapse;}
+table.fixed {table-layout:fixed; width:1160px;}
+/*table.fixed td {overflow:hidden;}
+table.fixed td:nth-of-type(1) {width:40px; text-align: center;}
+table.fixed td:nth-of-type(2) {width:140px; text-align: left;}
+table.fixed td:nth-of-type(3) {width:140px; text-align: left;}
+table.fixed td:nth-of-type(4) {width:80px;text-align: right;}
+table.fixed td:nth-of-type(5) {width:730px;}
+table.fixed td:nth-of-type(6) {width:30px;}*/
+
+tr.strong {border-bottom: 3px solid black; background: #88f7ed;}
+tr {border-bottom: 1px solid black;}
+* {box-sizing: border-box;}
+.columna {float: left; width: 400px; padding: 10px;}
+.columnb {float: left; width: 700px; padding: 10px;}
+/* Clear floats after the columns */
+.row:after {content: ""; display: table; clear: both;}
+
+</style>
+<script>
+/*
+update file flow
+1. client 2 server		UPD_FILE_REQ\1file-IDX\1file-size\1#chunks\1
+2. server 2 client		SEND_FILE\1file-IDX
+3. client 2 server		FILE_CHUNK\1file-IDX\1#chunk\1#length\1
+	#3 repeats until sum(chunk size) = legnth
+4. server 2 client		UPDATE_FILE\1file-IDX\1error code\1error string
+*/
+const UPD_FILE_REQ	= "update file req";
+const SEND_FILE		= "send file";
+const FILE_CHUNK	= "file chunk";
+const UPDATE_FILE	= "update file";
+
+/*
+create file flow
+1. client 2 server		CREATE_FILE_REQ\1file-name\1
+2. server 2 client		CREATE_FILE\1error code\1error string
+*/
+const CREATE_FILE_REQ	= "update file req";
+const CREATE_FILE		= "update file";
+
+var c_connected = false;
+var websocket  = null;
+var updid = [];
+const chunk_size = 512;
+function pageload()
+    {
+    var inp = document.getElementsByClassName("sed");
+    for (i = 0; i < inp.length; i++)
+        {
+        inp[i].addEventListener("beforeinput", handleKeys, false);
+        inp[i].addEventListener("input", updatelen, false);
+        }
+    var cf = document.getElementById("fname");
+    if(cf)
+        cf.addEventListener("input", enable_create, false);
+    enable_create();
+    
+    const wsUri = window.location.origin + "/ws";
+	websocket = new WebSocket(wsUri);
+	websocket.addEventListener("open", () => {console.log("CONNECTED"); c_connected = true;});
+	websocket.addEventListener("close", (event) => {console.log("DISCONNECTED: " + event.data); c_connected = false;});
+	websocket.onmessage = (msg) => {ws_receive(msg);};
+    
+    }
+function ws_receive(msg)
+    {
+    console.log('RECEIVED:', msg.data);
+    var params = msg.data.split('\x01');
+    if(params[0] == CREATE_FILE)
+        {
+        if(params[1] == "ESP_OK")
+            location.reload();
+        else
+            alert("error creatingfile\n" + params[1] + "\n" + "errno = " + params[2]);
+        }
+    else if(params[0] == SEND_FILE)
+        {
+        if(params.length >=2 && updid.length == 1 && params[1] == updid[0])
+            {
+            var pos = 0, l = 0, n = 0;
+            var b = document.getElementById("ta-" + params[1]).value;
+            while(pos < b.len)
+                {
+                if(pos + chunk_size < b.length)
+                    l = chunk_size;
+                else 
+                    l = b.length - pos;
+                var buf1 = FILE_CHUNK + "\0x1" + params[1] + "\0x1" + n + "\0x1" + l + "\0x1";
+                var buf = buf1 + b.substring(pos, pos + l);
+                ws_send(buf);
+                pos += l;
+                n++;
+                }
+            }
+        }
+    }
+function ws_send(msg)
+	{
+	if(websocket.readyState == WebSocket.OPEN)
+		websocket.send(msg);
+	else
+		alert("not connected to websocket server");
+	}
+function handleKeys(e) 
+    {
+    if(document.getElementById("commit_ch").disabled == true ||
+        (updid.length == 1 && updid[0] == e.target.id)) //only 1 file at a time allowed to be updated
+        {
+        this.style.color = "rgb(255, 0, 0)";
+        document.getElementById("commit_ch").disabled = false; 
+        pushupdate(e.target.id);     
+        }
+    else {e.stopPropagation(); e.preventDefault();}
+    }
+function pushupdate(id)
+    {
+    for(i = 0; i < updid.length; i++)
+        {
+        if(updid[i] == id)
+            break;
+        }
+    if(i == updid.length)
+        updid.push(id);
+    }
+function updatelen(e) 
+    {
+    var target = e.target;
+    var l = target.value.length;
+    var id = e.target.id.split("-");
+    var idel = "size-" + id[1];
+    document.getElementById(idel).innerHTML = l; 
+    }
+function enable_create()
+    {
+    var fn = document.getElementById("fname").value;
+    if(fn.length)
+        document.getElementById("crfile").disabled = false;
+    else
+        document.getElementById("crfile").disabled = true;
+    }
+function create_file()
+    {
+    var fname = document.getElementById("fname").value;
+    if(fname.length)
+        {
+        var wsmsg = CREATE_FILE_REQ + "\1" + fname + "\1";
+        ws_send(wsmsg);
+        }
+    }
+function save_changes()
+    {
+    for(i = 0; i < updid.length; i++)
+        {
+        var size = Number(document.getElementById("size-" + updid[i]).innerHTML);
+        if(size == null)
+            continue;
+        var nr_chunks = size >> 9;
+        if(nr_chunks == 0) 
+            nr_chunks++;
+        var msg = UPD_FILE_REQ + '\x01' + updid[i] + '\0x1'+ size + '\0x1' + nr_chunks + '\0x1';
+        ws_send(msg);        
+        }
+    }
+</script>
+</head>
+<body onLoad="pageload()">		
+<h1>SPIFFS partition content</h1>
+<div style="width: 1100px;">
+<div class="row">
+    <div class="columna">
+        <div style="margin-Left: 50px;">
+            <h3 style="font-size: 16px;">
+            partInfo
+                <table>
+                    <tr style="font-size: 22px;">
+                        <td colspan="2">Partition name:</td>
+                        <td>user</td>
+                    </tr>
+                    <tr>
+                        <td style="width: 20px;"> </td>
+                        <td>size:</td>
+                        <td style="text-align: right;">15384211</td>
+                    </tr>
+                    <tr>
+                        <td></td>
+                        <td>used:</td>
+                        <td style="text-align: right;">223418</td>
+                    </tr>
+                    <tr>
+                        <td></td>
+                        <td>mount point:</td>
+                        <td style="text-align: right;">/mount_point</td>
+                    </tr>
+                </table>
+        </div>
+    </div>
+    addFile
+    <div class="columnb">
+        <div style="margin-top: 50px;width: 800px;">
+            <h3 style="font-size: 16px;">Create new file</h3>
+            <table>
+                <tr style="border-bottom: 0px;">
+                    <td style="width: 90px; text-align: right;">Name: </td>
+                    <td>
+                        <input id = "fname" style="width: 200px;">
+                    </td>
+                    <td>
+                        <button id="crfile" style="width: 80px;" type="button" onclick="create_file()">Create</button>
+                    </td>
+                </tr>
+            </table>
+        </div>
+    </div>
+</div>
+<div style="margin-left: 50px;">
+<table class="fixed">
+    <tr>
+        <th style="width: 240px;">name</th> 
+        <th style="width: 70px;">size(B)</th>
+        <th style="width: 20px;"></th>
+        <th style="width: 200px;">date</th> 
+        <th style="width: 680px;">Content&nbsp;&nbsp;<button id = "commit_ch" type="button" disabled onclick="save_changes()">Save changes</button></th> 
+        <th style="width: 80px;"><button style="width: 80px;" type="button" onclick="delsel()">Erase sel</button></th> 
+    </tr>
+insertFiles
+    <tr>
+        <td style="text-align:left;">file1.txt</td>
+        <td id="size-0" style="text-align:right;">28</td>
+        <td></td>
+        <td>Sun Apr 12 11:04:51 2026</td>
+        <td>
+            <textarea class = "sed" id="ta-0" rows="1" style="width: 673px; resize: vertical;">text in file</textarea>
+        </td>
+        <td><label> &nbsp; &nbsp; &nbsp; &nbsp;</label><input id="sel-0" name="ns1" class="sel2delns" type="checkbox"></td>
+    </tr>
+    <tr>
+        <td style="text-align:left;">file2.txt</td>
+        <td id="size-1" style="text-align:right;">28</td>
+        <td></td>
+        <td>Sun Apr 12 11:04:51 2026</td>
+        <td>
+            <textarea class = "sed" id="ta-1" rows="1" style="width: 673px; resize: vertical;">text in file</textarea>
+        </td>
+        <td><label> &nbsp; &nbsp; &nbsp; &nbsp;</label><input name="ns1" class="sel2delns" type="checkbox"></td>
+    </tr>
+</table>
+</div>
+</body></html>                    

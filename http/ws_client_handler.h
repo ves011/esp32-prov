@@ -59,6 +59,27 @@ update key flow
 #define UPDATE_KEY		"update key"
 
 /*
+update file flow
+1. client 2 server		UPD_FILE_REQ\1file-IDX\1file-size\1#chunks\1
+2. server 2 client		SEND_FILE\1file-IDX
+3. client 2 server		FILE_CHUNK\1file-IDX\1#chunk\1#length\1
+	#3 repeats until sum(chunk size) = legnth
+4. server 2 client		UPDATE_FILE\1file-IDX\1error code\1error string
+*/
+#define UPD_FILE_REQ	"update file req"
+#define SEND_FILE		"send file"
+#define FILE_CHUNK		"file chunk"
+#define UPDATE_FILE		"update file"
+
+/*
+create file flow
+1. client 2 server		CREATE_FILE_REQ\1file-name\1
+2. server 2 client		CREATE_FILE\1error code\1error string
+*/
+#define CREATE_FILE_REQ	"update file req"
+#define CREATE_FILE		"update file"
+
+/*
 delete key flow
 client 2 server			DELETE_NS\1namespaceName\1
 						DELETE_KEY\1keyID\1

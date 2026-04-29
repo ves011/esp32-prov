@@ -58,14 +58,18 @@ To send/receive messages each page uses 2 javascript functions: **ws_send()** an
 
 ## Partition table operations
 
-List of partitions, as they are defined in the .csv file used to generate partition table.
-Selectable partition combo which includes only partitions whose content can be modified. This includes partitions which have the following subtype: NVS, OTA_xx, APP, SPIFFS, FAT
+List of partitions, as they are discovered in the flash memory of the device using <br>
+**esp_partition_find(ESP_PARTITION_TYPE_ANY, ESP_PARTITION_SUBTYPE_ANY, NULL);** <br>
+Only partitions with type **ESP_PARTITION_TYPE_APP** and **ESP_PARTITION_TYPE_DATA** are considered.
+
+The combo with selectable partition, includes only partitions whose content can be modified. This includes partitions which have the following subtype: NVS, OTA_xx, APP, SPIFFS, FAT, LITTLEFS
 
 The operations are applied to the selected partition in the combo.
 If partition subtype NVS is present in the list, it can be edited in detail in "nvs_editor" page.
 ![Partition table page](./part.png)
 
 # In place NVS editor
+
 ![Partition table page](./nvsed.png)
 
 

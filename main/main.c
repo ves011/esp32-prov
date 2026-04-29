@@ -8,11 +8,14 @@
 #include <esp_console.h>
 #include "project_specific.h"
 #include "common_defines.h"
+#include "spiffsop.h"
 #include "utils.h"
+#include "ntp_sync.h"
 #include "cmd_system.h"
 #include "cmd_wifi.h"
 #include "file_server.h"
 #include "nvsop.h"
+#include "esp_spiffs.h"
 
 static const char *TAG = "OTA-main";
 #define PROMPT_STR	"OTA-https"
@@ -34,18 +37,25 @@ static void initialize_nvs(void)
 	
 void app_main(void)
 	{
-	spiffs_storage_check();
 	initialize_nvs();
+	spiffs_storage_check();
 	//rw_dev_config(PARAM_READ);
 	get_nvs_conf();
-
+	initialise_wifi();
 	esp_console_register_help_command();
 	register_system();
 	register_wifi();
 	register_nvsop();
+	/* Set local timezone (used by UI and logging) */
+	setenv("TZ","EET-2EEST,M3.4.0/03,M10.4.0/04",1);
+	
+	//list_files("user");
+
+	//int ret = esp_vfs_spiffs_unregister("user");
+	//ESP_LOGI(TAG, "spiffs unregister: %d", ret);
 
 	wifi_join(NULL, NULL, JOIN_TIMEOUT_MS);
-
+	sync_NTP_time();
 	start_file_server(BASE_PATH);
 #ifdef WITH_CONSOLE
 	esp_console_repl_t *repl = NULL;

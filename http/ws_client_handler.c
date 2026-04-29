@@ -21,6 +21,7 @@
 //#include "utils.h"
 #include "handlers.h"
 #include "nvsop.h"
+#include "spiffsop.h"
 #include "ws_client_handler.h"
 
 static char *TAG = "WS_CLIENT";
@@ -292,10 +293,43 @@ void ws_handler_task(void *pvParameters)
 					send_strmsg(buf);
 					}
 				}
+			else if(strcmp(pstr, CREATE_FILE_REQ) == 0)
+				{
+				pstr = strtok(NULL, "\1"); // file name
+				if(pstr)
+					{
+					ret = create_file(pstr);
+					if(ret == ESP_OK)
+						sprintf(buf, CREATE_FILE"\1ESP_OK\1success\1");
+					else
+						sprintf(buf, CREATE_FILE"\1ESP_FAIL\1%d\1", ret);
+					send_strmsg(buf);
+					}
+				}
+			else if(strcmp(pstr, UPD_FILE_REQ) == 0)
+				{
+				int idx, size, nrchunks;
+				pstr = strtok(NULL, "\1"); // file index in *flist
+				if(pstr)
+					{
+					idx = atoi(pstr);
+					pstr = strtok(NULL, "\1"); // size of file
+					if(pstr)
+						{
+						size = atoi(pstr);
+						pstr = strtok(NULL, "\1"); // # of chunks - not really used
+						if(pstr)
+							{
+							nrchunks = atoi(pstr);
+							}
+						}
+					}
+				}
 			else
 				{
 				ESP_LOGI(TAG, "unhandled message %s", pstr);
 				}
+				
 			}
 		}
 	}

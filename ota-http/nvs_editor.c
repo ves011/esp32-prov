@@ -126,8 +126,8 @@ esp_err_t nvs_get_handler(httpd_req_t *req)
 	nvs_handle_t nvsh;
 	int i, j, ret;
 	keydef_t keydef;
-	buf = malloc(1024);
 	extern char nvs_page_start[] asm("_binary_nvseditor_html_start");
+	
     //extern char nvs_page_end[]   asm("_binary_nvseditor_html_end");
     //insert_value("devName", dev_conf.dev_name);
    // const size_t nvs_page_size = (nvs_page_end - nvs_page_start);
@@ -138,17 +138,21 @@ esp_err_t nvs_get_handler(httpd_req_t *req)
 	
     last_pchar = nvs_page_start;
     pchar = strstr(last_pchar, "partInfo");
-    
+    if(!pchar)
+    	{
+		httpd_resp_send_chunk(req, "Wrong page format</h3></div></body></html>", HTTPD_RESP_USE_STRLEN);
+		httpd_resp_send_chunk(req, NULL, 0);
+        return ESP_OK;
+		}
     httpd_resp_send_chunk(req, last_pchar, pchar - last_pchar);
     last_pchar = pchar + strlen("partInfo");
-    
+    	
 	tchar = strchr(req->uri, '?');
 	if(tchar)
 		strcpy(pn, tchar + 1);
 	else
 		{
-		strcpy(buf, "missing partition name</h3></div></body></html>");
-		httpd_resp_send_chunk(req, buf, strlen(buf));
+		httpd_resp_send_chunk(req, "missing partition name</h3></div></body></html>", HTTPD_RESP_USE_STRLEN);
 		httpd_resp_send_chunk(req, NULL, 0);
         return ESP_OK;
 		}
@@ -167,8 +171,17 @@ esp_err_t nvs_get_handler(httpd_req_t *req)
 	
 	if(!pit)
 		{
-		sprintf(buf, "partition \"%s\" not found or not NVS type</h3></div></body></html>", pn);
-		httpd_resp_send_chunk(req, buf, strlen(buf));
+		char b[100];
+		sprintf(b, "partition \"%s\" not found or not NVS type</h3></div></body></html>", pn);
+		httpd_resp_send_chunk(req, b, strlen(b));
+		httpd_resp_send_chunk(req, NULL, 0);
+        return ESP_OK;
+		}
+		
+	buf = malloc(1024);
+	if(!buf)
+    	{
+		httpd_resp_send_chunk(req, "Not enough memory to allocate work buffer</h3></div></body></html>", HTTPD_RESP_USE_STRLEN);
 		httpd_resp_send_chunk(req, NULL, 0);
         return ESP_OK;
 		}
@@ -372,5 +385,6 @@ esp_err_t nvs_get_handler(httpd_req_t *req)
     //httpd_resp_send_chunk(req, last_pchar, nvs_page_size);
     //end of page
 	httpd_resp_send_chunk(req, NULL, 0);
+	free(buf);
     return ESP_OK;
 	}
