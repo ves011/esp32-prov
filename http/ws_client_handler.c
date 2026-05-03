@@ -36,9 +36,15 @@ void send_strmsg(char *msg)
     ws_pkt.payload = (uint8_t*)msg;
     ws_pkt.len = strlen(msg);
     ws_pkt.type = HTTPD_WS_TYPE_TEXT;
-    ret = httpd_ws_send_frame_async(w_server, wsfd, &ws_pkt);
-    ESP_LOGI(TAG, "ws_send_frame_async: %d / %s", ret, msg);
+    if(wsfd)
+    	{
+    	ret = httpd_ws_send_frame_async(w_server, wsfd, &ws_pkt);
+    	ESP_LOGI(TAG, "ws_send_frame_async: %d / %s", ret, msg);
+    	}
+    else
+    	ESP_LOGI(TAG, "ws_send_frame_async error: wsfd = 0");
 	}
+/*	
 void send_binmsg(char *msg, int len)
 	{
 	int ret;
@@ -50,7 +56,7 @@ void send_binmsg(char *msg, int len)
     ret = httpd_ws_send_frame_async(w_server, wsfd, &ws_pkt);
     ESP_LOGI(TAG, "ws_send_frame_async: %d / %s", ret, msg);
 	}
-
+*/
 void ws_handler_task(void *pvParameters)
 	{
 	wsmsqg_t msg;

@@ -102,7 +102,6 @@ function ws_receive(msg)
 	var params = msg.data.split('\x01');
 	if(params[0] == "setBoot" && params.length == 3)
 		{
-		//setBoot\0x01resutlt(0|1)\0x01partName\0x01
 		if(params[1] != "ESP_OK")
 			alert("Cannot set boot flag to " + params[2] + "\n" + params[1]);
 		}
@@ -120,15 +119,12 @@ function ws_receive(msg)
 			document.getElementById("ustatus").innerHTML = "flashing... " + params[2];
 		else if(params[1] == "error")
 			{
-			if(upload_inp == 1)
+			//if(upload_inp == 1)
 				xhttp.abort();
 			}
 		}
 	else if(params[0] == "dstatus")
 		{
-		//document.getElementById("dump").style.cursor = "default";
-		//document.body.style.cursor = "default";
-		document.querySelector("html").classList.remove("wait");
 		if(params[1] == "progress")
 			alert(params[2]);
 		}
@@ -146,18 +142,17 @@ function ws_receive(msg)
 			alert(params[2]);
 		}
 	}
-/*
-function setpath() 
-	{
-    var default_path = document.getElementById("newfile").files[0].name;
-    //document.getElementById("filepath").value = default_path;
-	}
-*/
+
 function upload() 
 	{
 	//var filePath = document.getElementById("newfile").files[0].name;
     var upload_path = "/upload/" + document.getElementById("parts").value; //filePath;
     var fileInput = document.getElementById("newfile").files;
+	if(fileInput.length == 0)
+		{
+		alert("No file chosen!!!");
+		return;
+		}
     var file = fileInput[0];
 
 	xhttp = new XMLHttpRequest();
@@ -165,45 +160,28 @@ function upload()
 		{
 		if (xhttp.readyState == 4) 
 			{
-			upload_inp = 0;
-			if (xhttp.status == 200) 
-				window.location.href = location.origin + "?tab=part";
-			else if (xhttp.status == 303) 
-				alert(xhttp.responseText);
-			else if (xhttp.status == 302) 
-				{ 
-				xhttp.open("POST", upload_path, true);
-				xhttp.send(file);
-				}
-			else if (xhttp.status == 0) 
+            if (xhttp.status == 200) 
 				{
-				alert("Server closed the connection abruptly!");
-				window.location.href = location.origin + "?tab=part";
-				} 
+                window.location.href = location.origin;
+            	} 
 			else 
 				{
-				alert(xhttp.status + " Error!\n" + xhttp.responseText);
-				window.location.href = location.origin + "?tab=part";
-				}
-			}
+                alert(xhttp.status + " Error!\n" + xhttp.responseText);
+            	}
+			document.getElementById("upload").disabled = false;
+        	}
 		};
-	var u = upload_path  + ".test";
-	xhttp.open("POST", upload_path + "." + file.size, true);
-	xhttp.send(null);
+	xhttp.onerror = function() {alert("Network error during upload");};
+	xhttp.open("POST", upload_path, true);
+    xhttp.send(file);   // ✅ send file directly
+	document.getElementById("upload").disabled = true;
 	}
 function dump()
 	{
-	// Create a link and set the URL using `createObjectURL`
-	//document.getElementById("dump").style.cursor = "wait";
-	//document.body.style.cursor = "wait";
-	//document.querySelector("html").classList.add("wait");
 	var name = document.getElementById("parts").value;
-	//const file = new File([""], name + ".bin");
   	const link = document.createElement("a");
 	link.style.display = "none";
 	link.href = location.origin + "/download/" + name; 
-	//link.href = URL.createObjectURL(file);
-
 	link.download = name + ".bin";
 
   // It needs to be added to the DOM so it can be clicked

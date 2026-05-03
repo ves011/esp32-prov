@@ -14,10 +14,12 @@
 #define FILE_PATH_MAX (ESP_VFS_PATH_MAX + CONFIG_SPIFFS_OBJ_NAME_LEN)
 #define INSERTPARTITIONS	"<tr><td>insPart</td></tr>"
 #define INSERTOPTPART		"<option value=\"1\">insertOptions</option>"
-#define SCRATCH_BUFSIZE  8192
-#define MAX_UPDPART		20
+#define SCRATCH_BUFSIZE  	8192
+#define MAX_UPDPART			20
+#define MAX_BLOB_DISPLAY	SCRATCH_BUFSIZE
 
 #define NVSK_DOWNLOAD		"/nvskdownload/"
+#define NVSK_UPLOAD			"/nvskupload/"
 #define PART_DOWNLOAD		"/download/"
 #define PART_UPLOAD			"/upload/"
 
@@ -40,6 +42,7 @@ struct file_server_data {
 extern int npart;
 extern ptable_t pTable[MAX_UPDPART];
 extern int wsfd;
+extern struct file_server_data server_data;
 
 esp_err_t root_get_handler(httpd_req_t *req);
 esp_err_t main_post_handler(httpd_req_t *req);

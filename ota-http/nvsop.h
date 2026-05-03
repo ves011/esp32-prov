@@ -64,6 +64,9 @@ void nvs_update_task(void *pvParameters);
 int nvs_set_val(int type, nvs_handle_t handle, char *name, int len, void *val);
 int erase_nvs_key(char *ns, char *key);
 esp_err_t nvskey_get_handler(httpd_req_t *req);
+#if 0
+esp_err_t nvskey_upload_handler(httpd_req_t *req);
+#endif
 
 
 #endif /* MAIN_NVSOP_H_ */

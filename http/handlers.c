@@ -15,14 +15,12 @@
 #include <spi_flash_mmap.h>
 #include "esp_err.h"
 #include "esp_http_server.h"
-//#include "freertos/idf_additions.h"
-//#include "freertos/projdefs.h"
 #include "esp_ota_ops.h"
 #include "esp_partition.h"
 #include "freertos/idf_additions.h"
 #include "freertos/projdefs.h"
+#include "esp_image_format.h"
 #include "project_specific.h"
-//#include "common_defines.h"
 #include "cmd_wifi.h"
 #include "utils.h"
 #include "keep_alive.h"
@@ -37,6 +35,7 @@ int npart;
 ptable_t pTable[MAX_UPDPART];
 //static char pname[10][20];
 int wsfd;
+struct file_server_data server_data;
 
 /* Copies the full path into destination buffer and returns
  * pointer to path (skipping the preceding base path) */
@@ -67,19 +66,6 @@ static const char* get_path_from_uri(char *dest, const char *base_path, const ch
     return dest + base_pathlen;
 }
 
-/* Handler to respond with an icon file embedded in flash.
- * Browsers expect to GET website icon at URI /favicon.ico.
- * This can be overridden by uploading file with same name */
-static esp_err_t favicon_get_handler(httpd_req_t *req)
-	{
-    extern const unsigned char favicon_ico_start[] asm("_binary_favicon_ico_start");
-    extern const unsigned char favicon_ico_end[]   asm("_binary_favicon_ico_end");
-    const size_t favicon_ico_size = (favicon_ico_end - favicon_ico_start);
-    httpd_resp_set_type(req, "image/x-icon");
-    httpd_resp_send(req, (const char *)favicon_ico_start, favicon_ico_size);
-    return ESP_OK;
-	}
-
 esp_err_t root_get_handler(httpd_req_t *req)
 	{
 	//char buf[32];
@@ -94,10 +80,8 @@ esp_err_t root_get_handler(httpd_req_t *req)
     	my_esp_restart();
     const char *filename = get_path_from_uri(filepath, "/",
                                              req->uri, sizeof(filepath));
-	ESP_LOGI(TAG, "uri: %s / fname: %s / fpath: %s", req->uri, filename, filepath);
-	
-    if (strcmp(filename, "/favicon.ico") == 0)
-            return favicon_get_handler(req);                    
+	ESP_LOGI(TAG, "uri: \"%s\" / fname: \"%s\" / fpath: \"%s\"", req->uri, filename, filepath);
+                   
     httpd_resp_set_type(req, "text/html");
     //httpd_resp_send(req, "<h1>Hello Secure World!</h1>", HTTPD_RESP_USE_STRLEN);
     //httpd_resp_send(req, main_page_start, main_page_size);
@@ -129,7 +113,7 @@ esp_err_t root_get_handler(httpd_req_t *req)
 	httpd_resp_send_chunk(req, last_pchar, main_page_end - last_pchar);
 	
 	//end of page
-	httpd_resp_send_chunk(req, pchar, 0);
+	httpd_resp_send_chunk(req, NULL, 0);
 		
     return ESP_OK;
 	}
@@ -137,102 +121,42 @@ esp_err_t root_get_handler(httpd_req_t *req)
 esp_err_t root_update_handler(httpd_req_t *req)
 	{
 	ESP_LOGI(TAG, "root_update_handler %s", req->uri);
-	//if(req->content_len == 0)
-	//	{
-	//	esp_restart();
-	//	restart_in_progress = 1;
-	//	}
 	char*  buf = malloc(req->content_len + 2);
-	size_t off = 0;
-	while (off < req->content_len) 
+	if(buf)
 		{
-		/* Read data received in the request */
-		int ret = httpd_req_recv(req, buf + off, req->content_len - off);
-		if (ret <= 0) 
+		size_t off = 0;
+		while (off < req->content_len) 
 			{
-			if (ret == HTTPD_SOCK_ERR_TIMEOUT)
-				httpd_resp_send_408(req);
-			free (buf);
-			return ESP_FAIL;
-			}
-		off += ret;
-		ESP_LOGI(TAG, "root_post_handler recv length %d", ret);
-		}
-	buf[off] = '&';
-	buf[off + 1] = '\0';
-	ESP_LOGI(TAG, "root_post_handler buf=[%s]", buf);
-	if(strstr(buf, REBOOTFORM"=1"))
-		{
-		ESP_LOGI(TAG, "restart triggered");
-		restart_in_progress = 1;
-		}
-	httpd_resp_set_status(req, "303 See Other");
-    httpd_resp_set_hdr(req, "Location", "/");
-    httpd_resp_sendstr(req, "Update success");
-	return ESP_OK;
-	}
-/*
-esp_err_t set_boot_handler(httpd_req_t *req)
-	{
-	ESP_LOGI(TAG, "set_boot_handler %s", req->uri);
-	char*  buf = malloc(req->content_len + 2);
-	char pbuf[60];
-	int err = ESP_FAIL;
-	bool sb = false;
-	size_t off = 0;
-	while (off < req->content_len) 
-		{
-		// Read data received in the request 
-		int ret = httpd_req_recv(req, buf + off, req->content_len - off);
-		if (ret <= 0) 
-			{
-			if (ret == HTTPD_SOCK_ERR_TIMEOUT)
-				httpd_resp_send_408(req);
-			free (buf);
-			return ESP_FAIL;
-			}
-		off += ret;
-		ESP_LOGI(TAG, "set_boot_handler recv length %d", ret);
-		}
-	buf[off] = 0;
-	ESP_LOGI(TAG, "set_boot_handler buf=[%s]", buf);
-	if(strstr(buf, "bp="))
-		{
-		strcpy(pbuf, buf + strlen("bp="));
-		ESP_LOGI(TAG, "new boot partition: %s ", pbuf);
-		const esp_partition_t *bootp = esp_ota_get_boot_partition();
-		if(strcmp(pbuf, bootp->label))
-			{
-			const esp_partition_t *np = NULL;
-			esp_partition_iterator_t pit = esp_partition_find(ESP_PARTITION_TYPE_ANY, ESP_PARTITION_SUBTYPE_ANY, NULL);
-			while(pit)
+			/* Read data received in the request */
+			int ret = httpd_req_recv(req, buf + off, req->content_len - off);
+			if (ret <= 0) 
 				{
-				np = esp_partition_get(pit);
-				if(!strcmp(pbuf, np->label))
-					{
-					sb = true;
-					err = esp_ota_set_boot_partition(np);
-					break;
-					}
-				pit = esp_partition_next(pit);
+				if (ret == HTTPD_SOCK_ERR_TIMEOUT)
+					httpd_resp_send_408(req);
+				free (buf);
+				return ESP_FAIL;
 				}
+			off += ret;
+			ESP_LOGI(TAG, "root_post_handler recv length %d", ret);
 			}
-		}
-	if(sb)
-		{
-		if(err == ESP_OK)
-			strcpy(pbuf, "/?tab=part&setboot=0");
-		else
-			sprintf(pbuf, "/?tab=part&setboot=%-x", err);
+		buf[off] = '&';
+		buf[off + 1] = '\0';
+		ESP_LOGI(TAG, "root_post_handler buf=[%s]", buf);
+		if(strstr(buf, REBOOTFORM"=1"))
+			{
+			ESP_LOGI(TAG, "restart triggered");
+			restart_in_progress = 1;
+			}
+		httpd_resp_set_status(req, "303 See Other");
+	    httpd_resp_set_hdr(req, "Location", "/");
+	    httpd_resp_sendstr(req, "Update success");
+		return ESP_OK;
 		}
 	else
-		strcpy(pbuf, "/?tab=part");
-	httpd_resp_set_status(req, "303 See Other");
-    httpd_resp_set_hdr(req, "Location", pbuf);
-    httpd_resp_sendstr(req, "Update success");
-	return ESP_OK;
+		httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Payload too large");
+	return ESP_FAIL;
 	}
-*/	
+	
 void enum_partitions(httpd_req_t *req)
 	{
 	char btmp[60];
@@ -241,6 +165,7 @@ void enum_partitions(httpd_req_t *req)
 	const esp_partition_t *np = NULL;
 	const esp_partition_t *bootp = esp_ota_get_boot_partition();
 	esp_partition_iterator_t pit = esp_partition_find(ESP_PARTITION_TYPE_ANY, ESP_PARTITION_SUBTYPE_ANY, NULL);
+	//esp_partition_iterator_t it = pit;
 	npart = 0;
     while(pit)
     	{
@@ -258,45 +183,47 @@ void enum_partitions(httpd_req_t *req)
 			strcpy(part_chunk, "<tr><td>");
 			if(np->subtype == ESP_PARTITION_SUBTYPE_DATA_NVS)
 				{
-				strcat(part_chunk, "<a href=\"nvs_editor.html?");
-				strcat(part_chunk, np->label);
-				strcat(part_chunk, "\"/a>");
-				strcat(part_chunk, np->label);
+				strlcat(part_chunk, "<a href=\"nvs_editor.html?", sizeof(part_chunk));
+				strlcat(part_chunk, np->label, sizeof(part_chunk));
+				strlcat(part_chunk, "\">", sizeof(part_chunk));
+				strlcat(part_chunk, np->label, sizeof(part_chunk));
+				strlcat(part_chunk, "</a>", sizeof(part_chunk));
 				}
 			else if(np->subtype == ESP_PARTITION_SUBTYPE_DATA_SPIFFS)
 				{
-				strcat(part_chunk, "<a href=\"spiffs_editor.html?");
-				strcat(part_chunk, np->label);
-				strcat(part_chunk, "\"/a>");
-				strcat(part_chunk, np->label);
+				strlcat(part_chunk, "<a href=\"spiffs_editor.html?", sizeof(part_chunk));
+				strlcat(part_chunk, np->label, sizeof(part_chunk));
+				strlcat(part_chunk, "\">", sizeof(part_chunk));
+				strlcat(part_chunk, np->label, sizeof(part_chunk));
+				strlcat(part_chunk, "</a>", sizeof(part_chunk));
 				}
 			else
-				strcat(part_chunk, np->label);
+				strlcat(part_chunk, np->label, sizeof(part_chunk));
 			if(np == bootp)
-				strcat(part_chunk, "(b)");
+				strlcat(part_chunk, "(b)", sizeof(part_chunk));
 			if(runp)
-				strcat(part_chunk, "(*)");
-			strcat(part_chunk, "</td><td>");
+				strlcat(part_chunk, "(*)", sizeof(part_chunk));
+			strlcat(part_chunk, "</td><td>", sizeof(part_chunk));
 			
-			if(np->type == ESP_PARTITION_TYPE_APP) strcat(part_chunk, "APP</td>");
-			else if(np->type == ESP_PARTITION_TYPE_DATA) strcat(part_chunk, "DATA</td>");
-			else strcat(part_chunk, "other</td>");
+			if(np->type == ESP_PARTITION_TYPE_APP) strlcat(part_chunk, "APP</td>", sizeof(part_chunk));
+			else if(np->type == ESP_PARTITION_TYPE_DATA) strlcat(part_chunk, "DATA</td>", sizeof(part_chunk));
+			else strlcat(part_chunk, "other</td>", sizeof(part_chunk));
 			
 			if(np->subtype >= ESP_PARTITION_SUBTYPE_APP_OTA_MIN && np->subtype <= ESP_PARTITION_SUBTYPE_APP_OTA_MAX)
 				{
 				sprintf(btmp, "%d</td>", np->subtype - ESP_PARTITION_SUBTYPE_APP_OTA_MIN);
-				strcat(part_chunk, "<td>ota_");
-				strcat(part_chunk, btmp);
+				strlcat(part_chunk, "<td>ota_", sizeof(part_chunk));
+				strlcat(part_chunk, btmp, sizeof(part_chunk));
 				upd = true;
 				}
-			else if(np->subtype == ESP_PARTITION_SUBTYPE_DATA_OTA)strcat(part_chunk, "<td>OTA</td>");
-			else if(np->subtype == ESP_PARTITION_SUBTYPE_DATA_PHY)strcat(part_chunk, "<td>PHY</td>");
-			else if(np->subtype == ESP_PARTITION_SUBTYPE_DATA_NVS){strcat(part_chunk, "<td>NVS</td>"); upd = true;}
-			else if(np->subtype == ESP_PARTITION_SUBTYPE_DATA_COREDUMP){strcat(part_chunk, "<td>COREDUMP</td>"); upd = true;}
-			else if(np->subtype == ESP_PARTITION_SUBTYPE_DATA_FAT){strcat(part_chunk, "<td>FAT</td>"); upd = true;}
-			else if(np->subtype == ESP_PARTITION_SUBTYPE_DATA_SPIFFS){strcat(part_chunk, "<td>SPIFFS</td>"); upd = true;}
-			else if(np->subtype == ESP_PARTITION_SUBTYPE_DATA_LITTLEFS){strcat(part_chunk, "<td>LITTLEFS</td>"); upd = true;}
-			else strcat(part_chunk, "other</td>");
+			else if(np->subtype == ESP_PARTITION_SUBTYPE_DATA_OTA)strlcat(part_chunk, "<td>OTA</td>", sizeof(part_chunk));
+			else if(np->subtype == ESP_PARTITION_SUBTYPE_DATA_PHY)strlcat(part_chunk, "<td>PHY</td>", sizeof(part_chunk));
+			else if(np->subtype == ESP_PARTITION_SUBTYPE_DATA_NVS){strlcat(part_chunk, "<td>NVS</td>", sizeof(part_chunk)); upd = true;}
+			else if(np->subtype == ESP_PARTITION_SUBTYPE_DATA_COREDUMP){strlcat(part_chunk, "<td>COREDUMP</td>", sizeof(part_chunk)); upd = true;}
+			else if(np->subtype == ESP_PARTITION_SUBTYPE_DATA_FAT){strlcat(part_chunk, "<td>FAT</td>", sizeof(part_chunk)); upd = true;}
+			else if(np->subtype == ESP_PARTITION_SUBTYPE_DATA_SPIFFS){strlcat(part_chunk, "<td>SPIFFS</td>", sizeof(part_chunk)); upd = true;}
+			else if(np->subtype == ESP_PARTITION_SUBTYPE_DATA_LITTLEFS){strlcat(part_chunk, "<td>LITTLEFS</td>", sizeof(part_chunk)); upd = true;}
+			else strlcat(part_chunk, "other</td>", sizeof(part_chunk));
 			if(upd && npart < MAX_UPDPART)
 				{
 				strcpy(pTable[npart].name, np->label);
@@ -314,14 +241,15 @@ void enum_partitions(httpd_req_t *req)
 				npart++;
 				}
 			sprintf(btmp, "<td style=\"text-align:right;\">0x%X</td>", (unsigned int)np->address);
-			strcat(part_chunk, btmp);
+			strlcat(part_chunk, btmp, sizeof(part_chunk));
 			
-			sprintf(btmp, "<td style=\"text-align:right;\">0x%X</td></tr>", (unsigned int)np->size);
-			strcat(part_chunk, btmp);
+			sprintf(btmp, "<td style=\"text-align:right;\">0x%X</td></tr>\n", (unsigned int)np->size);
+			strlcat(part_chunk, btmp, sizeof(part_chunk));
 			httpd_resp_sendstr_chunk(req, part_chunk);
     		}
     	pit = esp_partition_next(pit);
     	}
+    esp_partition_iterator_release(pit);
 	}
 void insert_part_options(httpd_req_t *req)
 	{
@@ -351,7 +279,15 @@ esp_err_t ws_handler(httpd_req_t *req)
                  	httpd_req_to_sockfd(req), 
                  	httpd_ws_get_fd_info(req->handle, httpd_req_to_sockfd(req)));
         if(httpd_ws_get_fd_info(req->handle, httpd_req_to_sockfd(req)) == 2)
+        	{
+			int fd = httpd_req_to_sockfd(req);
+			if(wsfd != 0 && wsfd != fd)
+				{
+				ESP_LOGI(TAG, "Rejecting second client");
+				return ESP_FAIL;
+				}
         	wsfd = httpd_req_to_sockfd(req);
+        	}
         return ESP_OK;
     	}
     httpd_ws_frame_t ws_pkt;
@@ -404,7 +340,12 @@ esp_err_t ws_handler(httpd_req_t *req)
             ESP_LOGI(TAG, "Received packet with message: %s", b);
             msg.fd = httpd_req_to_sockfd(req);
             msg.len = ws_pkt.len + 1; 
-            memcpy(msg.payload.strpayload, ws_pkt.payload, sizeof(msg.payload.binpayload));
+            //memcpy(msg.payload.strpayload, ws_pkt.payload, sizeof(msg.payload.binpayload));
+
+			size_t copy_len = MIN(ws_pkt.len, sizeof(msg.payload.binpayload) - 1);
+			memcpy(msg.payload.strpayload, ws_pkt.payload, copy_len);
+			msg.payload.strpayload[copy_len] = '\0';
+            
             xQueueSend(ws_msg_queue, &msg, pdMS_TO_TICKS(20));
             free(buf);
             return ESP_OK;
@@ -420,6 +361,8 @@ esp_err_t ws_handler(httpd_req_t *req)
             // Response CLOSE packet with no payload to peer
             ws_pkt.len = 0;
             ws_pkt.payload = NULL;
+            if (wsfd == httpd_req_to_sockfd(req))
+        		wsfd = 0;
         	}
         ret = httpd_ws_send_frame(req, &ws_pkt);
         if (ret != ESP_OK) 
@@ -436,7 +379,8 @@ esp_err_t ws_handler(httpd_req_t *req)
 	}
 int set_bp(char *pName)
 	{
-	int ret = ESP_OK;
+	int ret = ESP_FAIL;
+	esp_image_metadata_t meta;
 	const esp_partition_t *np = NULL;
 	esp_partition_iterator_t pit = esp_partition_find(ESP_PARTITION_TYPE_ANY, ESP_PARTITION_SUBTYPE_ANY, NULL);
 	while(pit)
@@ -444,30 +388,34 @@ int set_bp(char *pName)
 		np = esp_partition_get(pit);
 		if(!strcmp(pName, np->label))
 			{
-			ret = esp_ota_set_boot_partition(np);
+			esp_partition_pos_t pos = {
+                .offset = np->address,
+                .size   = np->size
+            	};
+			ret = esp_image_verify(ESP_IMAGE_VERIFY, &pos, &meta);
+			if(ret == ESP_OK)
+				ret = esp_ota_set_boot_partition(np);
 			break;
 			}
 		pit = esp_partition_next(pit);
 		}
+	esp_partition_iterator_release(pit);
+	if(ret != ESP_OK)
+		ESP_LOGE(TAG, "Image verification failed for %s: %s", pName, esp_err_to_name(ret));
 	return ret;
 	}
+	
+	
 /* Handler to upload a file onto the server */
 esp_err_t flashing_post_handler(httpd_req_t *req)
 	{
 	wsmsqg_t msg;
-	int idx, i, rcv, test = 0, size = 0, ret;
-    char filepath[FILE_PATH_MAX];
-    ESP_LOGI(TAG, "Receiving file uri: %s", req->uri);
-	const char *part = get_path_from_uri(filepath, ((struct file_server_data *)req->user_ctx)->base_path,
-                                             req->uri + sizeof("/upload/") - 1, sizeof(filepath));
-	if(strchr(part, '.'))
-		{
-		test = 1;
-		size = atoi(strchr(part, '.') + 1);
-		*strchr(part, '.') = 0;
-		}
-	if(size == 0)
-    	size = req->content_len;
+	int idx, i, rcv, size = 0, ret;
+    char part_buf[20];
+	strlcpy(part_buf, req->uri + strlen(PART_UPLOAD), sizeof(part_buf));
+	const char *part = part_buf;
+   	size = req->content_len;
+	ESP_LOGI(TAG, "URI: %s / req len: %d / size: %d", req->uri, req->content_len, size);
                                              
 	// get partition index in pTable
 	for(i = 0; i < npart; i++)
@@ -490,36 +438,20 @@ esp_err_t flashing_post_handler(httpd_req_t *req)
     /* Retrieve the pointer to scratch buffer for temporary storage */
     char *buf = ((struct file_server_data *)req->user_ctx)->scratch;
     int received;
-
-    /* Content length of the request gives
-     * the size of the file being uploaded */
-    //int remaining = req->content_len;
-    //size = req->content_len;
-    ESP_LOGI(TAG, "Receiving file : %s size: %d / %s", part, size, req->uri);
-    //check if file size matches with partition size
-    if(size > 0 && test)
-    	{
-		if(size > pTable[idx].size)
-    		{
-	        httpd_resp_set_status(req, "303 file size mismatch");
-	    	httpd_resp_sendstr(req, "file size larger than partition size");
-	    	return ESP_OK;
-			}
-		else
-    		{
-			if(pTable[idx].run)
-				{
-				httpd_resp_set_status(req, "303 file size mismatch");
-	    		httpd_resp_sendstr(req, "flashing running partition not allowed");
-	    		return ESP_OK;
-				}
-			else
-				{
-	        	httpd_resp_set_status(req, "302 file size OK");
-	    		httpd_resp_sendstr(req, "file size OK");
-	    		}
+	if(size > pTable[idx].size)
+		{
+    	httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "file size larger than partition size");
+    	return ESP_OK;
+		}
+	else
+		{
+		if(pTable[idx].run)
+			{
+    		httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "flashing running partition not allowed");
+    		return ESP_OK;
 			}
 		}
+
 	const esp_partition_t *np = NULL;
 	esp_partition_iterator_t pit = esp_partition_find(ESP_PARTITION_TYPE_ANY, ESP_PARTITION_SUBTYPE_ANY, NULL);
     while(pit)
@@ -529,29 +461,45 @@ esp_err_t flashing_post_handler(httpd_req_t *req)
 				break;
 		pit = esp_partition_next(pit);
 		}
-	if(np->subtype == ESP_PARTITION_SUBTYPE_DATA_NVS)
-		ret = nvs_flash_deinit_partition(np->label);
-	ret = esp_partition_erase_range(np, 0, np->size);
-	if(ret != ESP_OK)
+	esp_partition_iterator_release(pit);
+	if(!np)
 		{
-		sprintf(msg.payload.strpayload, "error erasing partition\n%s", esp_err_to_name(ret));
-		httpd_resp_set_status(req, "303 file size mismatch");
-		httpd_resp_sendstr(req, msg.payload.strpayload);
+		char bmsg[80];
+		snprintf(bmsg, sizeof(bmsg), "Partition not found: %s", part);
+		ESP_LOGE(TAG, "%s", bmsg);
+    	httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, bmsg);
+    	return ESP_FAIL;
+		}
+	ret = ESP_OK;
+	if(np && np->subtype == ESP_PARTITION_SUBTYPE_DATA_NVS)
+		ret = nvs_flash_deinit_partition(np->label);
+	if(ret == ESP_OK)
+		{
+		ret = esp_partition_erase_range(np, 0, np->size);
+		if(ret != ESP_OK)
+			{
+			sprintf(msg.payload.strpayload, "error erasing partition\n%s", esp_err_to_name(ret));
+			httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, msg.payload.strpayload);
+			return ESP_OK;
+			}
+		}
+	else
+		{
+		httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "error while dinit NVS partition");
 		return ESP_OK;
 		}
-
 	rcv = 0;
 	
     while (rcv < size) 
     	{
         ESP_LOGI(TAG, "Remaining size : %d", size - rcv);
         /* Receive the file part by part into a buffer */
-        if ((received = httpd_req_recv(req, buf, MIN(size - rcv, SCRATCH_BUFSIZE))) <= 0) 
+		if ((received = httpd_req_recv(req, buf, MIN(size - rcv, SCRATCH_BUFSIZE))) < 0) 
         	{
             if(received == HTTPD_SOCK_ERR_TIMEOUT) 
                 continue;
 
-            ESP_LOGE(TAG, "File reception failed!");
+            ESP_LOGE(TAG, "File reception failed! %s / %d", esp_err_to_name(received), received);
             /* In case of unrecoverable error,
             Respond with 500 Internal Server Error */
             httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Failed to receive file");
@@ -561,11 +509,16 @@ esp_err_t flashing_post_handler(httpd_req_t *req)
             xQueueSend(ws_msg_queue, &msg, pdMS_TO_TICKS(20));
             return ESP_FAIL;
         	}
+		else if(received == 0 && rcv < size)
+        	{
+			ESP_LOGW(TAG, "Connection closed before receiving all data");
+			return ESP_FAIL;
+			}
         ESP_LOGI(TAG, "Receiving file : %s size: %d", part, received);
         ret = esp_partition_write(np, rcv, buf, received);
 		if(ret != ESP_OK)
 			{
-			sprintf(msg.payload.strpayload, "error erasing partition\n%s", esp_err_to_name(ret));
+			sprintf(msg.payload.strpayload, "error writing partition\n%s", esp_err_to_name(ret));
 			httpd_resp_set_status(req, "303 file size mismatch");
 			httpd_resp_sendstr(req, msg.payload.strpayload);
 			return ESP_OK;
@@ -576,7 +529,7 @@ esp_err_t flashing_post_handler(httpd_req_t *req)
         xQueueSend(ws_msg_queue, &msg, pdMS_TO_TICKS(20));
         rcv += received;
     	}
-	if(np->subtype == ESP_PARTITION_SUBTYPE_DATA_NVS)
+	if(np && np->subtype == ESP_PARTITION_SUBTYPE_DATA_NVS)
 		ret = nvs_flash_init_partition(np->label);
     ESP_LOGI(TAG, "File reception complete");
     httpd_resp_set_status(req, "200 OK");
@@ -593,8 +546,8 @@ esp_err_t dump_get_handler(httpd_req_t *req)
     
     //strncpy(buf, req->uri, 30);
 	//ESP_LOGI(TAG, "download handler: %d", strlen(req->uri));
-	vTaskDelay(pdMS_TO_TICKS(5000));
-	strcpy(pname, req->uri + strlen("/download/"));
+	//vTaskDelay(pdMS_TO_TICKS(5000));
+	//strcpy(pname, req->uri + strlen("/download/"));
 	
 	buf = calloc(5000, 1);
 	if(buf == NULL)
@@ -609,6 +562,7 @@ esp_err_t dump_get_handler(httpd_req_t *req)
 	
 	const esp_partition_t *np = NULL;
 	esp_partition_iterator_t pit = esp_partition_find(ESP_PARTITION_TYPE_ANY, ESP_PARTITION_SUBTYPE_ANY, NULL);
+	//esp_partition_iterator_t it = pit;
     while(pit)
     	{
 		np = esp_partition_get(pit);
@@ -620,6 +574,7 @@ esp_err_t dump_get_handler(httpd_req_t *req)
 		{
 		size = np->size;
 		sent = 0;
+		httpd_resp_set_type(req, "application/octet-stream");
 		while(sent < size)
 			{
 			sz2r = MIN(bsize, size - sent);
@@ -630,7 +585,7 @@ esp_err_t dump_get_handler(httpd_req_t *req)
 				// Abort sending file 
                 httpd_resp_send_chunk(req, NULL, 0);
 	            msg.fd = httpd_req_to_sockfd(req);
-    	        sprintf(msg.payload.strpayload, DSTATUS"\1progress\1error reading partition\n%s\1", esp_err_to_name(ret));
+    	        sprintf(msg.payload.strpayload, DSTATUS"\1progress\1error reading partition %s\n%s\1", np->label, esp_err_to_name(ret));
         	    msg.len = strlen(msg.payload.strpayload); 
             	xQueueSend(ws_msg_queue, &msg, pdMS_TO_TICKS(20));
 				return ESP_OK;
@@ -653,6 +608,7 @@ esp_err_t dump_get_handler(httpd_req_t *req)
            	//ESP_LOGI(TAG, "dump file %d", (sent * 100) / size);
 			}
 		}
+	esp_partition_iterator_release(pit);
     ESP_LOGI(TAG, "File sending complete");
     httpd_resp_send_chunk(req, NULL, 0);
     return ESP_OK;

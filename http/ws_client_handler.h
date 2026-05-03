@@ -114,7 +114,7 @@ struct async_resp_arg {
 extern QueueHandle_t ws_msg_queue;
 int create_ws_client_handler();
 void send_strmsg(char *msg);
-void send_binmsg(char *msg, int len);
+//void send_binmsg(char *msg, int len);
 
 
 #endif /* MAIN_WS_CLIENT_HANDLER_H_*/

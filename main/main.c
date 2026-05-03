@@ -6,6 +6,7 @@
 #include <nvs_flash.h>
 #include <sys/param.h>
 #include <esp_console.h>
+#include "esp_err.h"
 #include "project_specific.h"
 #include "common_defines.h"
 #include "spiffsop.h"
@@ -29,16 +30,17 @@ static void initialize_nvs(void)
 	esp_err_t err = nvs_flash_init();
 	if (err == ESP_ERR_NVS_NO_FREE_PAGES || err == ESP_ERR_NVS_NEW_VERSION_FOUND)
 		{
-		ESP_ERROR_CHECK(nvs_flash_erase());
-		err = nvs_flash_init();
+		//ESP_ERROR_CHECK(nvs_flash_erase());
+		//err = nvs_flash_init();
+		ESP_LOGI(TAG, "NVS partition issue %s / %d", esp_err_to_name(err), err);
 		}
-	ESP_ERROR_CHECK(err);
+	//ESP_ERROR_CHECK(err);
 	}
 	
 void app_main(void)
 	{
 	initialize_nvs();
-	spiffs_storage_check();
+	//spiffs_storage_check();
 	//rw_dev_config(PARAM_READ);
 	get_nvs_conf();
 	initialise_wifi();
@@ -48,7 +50,7 @@ void app_main(void)
 	register_nvsop();
 	/* Set local timezone (used by UI and logging) */
 	setenv("TZ","EET-2EEST,M3.4.0/03,M10.4.0/04",1);
-	
+	start_file_server(BASE_PATH);
 	//list_files("user");
 
 	//int ret = esp_vfs_spiffs_unregister("user");
@@ -56,7 +58,7 @@ void app_main(void)
 
 	wifi_join(NULL, NULL, JOIN_TIMEOUT_MS);
 	sync_NTP_time();
-	start_file_server(BASE_PATH);
+
 #ifdef WITH_CONSOLE
 	esp_console_repl_t *repl = NULL;
     esp_console_repl_config_t repl_config = ESP_CONSOLE_REPL_CONFIG_DEFAULT();

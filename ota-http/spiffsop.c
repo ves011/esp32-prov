@@ -76,7 +76,7 @@ int list_files(char *pname, size_t *total, size_t * used)
 		.format_if_mount_failed = true
 		};
 	*total = 0, *used = 0;
-/*	
+	
 	ret = esp_vfs_spiffs_unregister(pname);
 	ESP_LOGI(TAG, "spiffs unregister: %d", ret);
 	
@@ -92,7 +92,7 @@ int list_files(char *pname, size_t *total, size_t * used)
             ESP_LOGE(TAG, "Failed to initialize SPIFFS (%s)", esp_err_to_name(ret));
         return ESP_FAIL;
 		}
-*/		
+		
 	ret = esp_spiffs_info(conf.partition_label, total, used);
 	if (ret != ESP_OK)
 		{

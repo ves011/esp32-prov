@@ -24,6 +24,7 @@
 //#include "project_specific.h"
 //#include "common_defines.h"
 #include "utils.h"
+#include "handlers.h"
 #include "ws_client_handler.h"
 #include "nvs_editor.h"
 #include "nvsop.h"
@@ -587,7 +588,6 @@ void nvs_update_task(void *pvParameters)
 							rcv_keyval[i].state = UPDATE_COMPLETE;
 							ret = nvs_open_from_partition(nvs_selpart, namespace[rcv_keyval[i].idxns].name, NVS_READWRITE, &handle);
 							ESP_LOGI(TAG, "name space open: %s / out handle %d", esp_err_to_name(ret), handle);
-							rcv_keyval[i].state = UPDATE_COMPLETE;
 							if(ret == ESP_OK)
 								{
 								ret = nvs_set_val(nvskey[rcv_keyval[i].idxkey].type, handle, nvskey[rcv_keyval[i].idxkey].name, rcv_keyval[i].len, rcv_keyval[i].recvb);
@@ -755,5 +755,109 @@ esp_err_t nvskey_get_handler(httpd_req_t *req)
 	send_strmsg(bmsg);
 	return ret;	
 	}
-	
-	
+#if 0
+/*
+ * URI: /nvskupload/?part=part_name&ns=namespace_name&key=key_name
+*/	
+esp_err_t nvskey_upload_handler(httpd_req_t *req)
+	{
+	int ret = ESP_FAIL;
+	size_t size;
+	ESP_LOGI(TAG, "URI: %s", req->uri);
+	char query[128];
+	char part[32], ns[32], key[32];
+	if((size = req->content_len) > MAX_BLOB_DISPLAY)
+		{
+		char berr[64];
+		snprintf(berr, sizeof(berr), "file size too large (%d)\nmax supported size is %d",
+			req->content_len, MAX_BLOB_DISPLAY);
+		httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, berr);
+    	return ESP_OK;	
+		}
+// parse URI to get partition name, namespace name and key name
+// 1. Extract full query string
+    size_t qlen = httpd_req_get_url_query_len(req) + 1;
+	if (qlen < sizeof(query)) 
+    	{
+		if (httpd_req_get_url_query_str(req, query, sizeof(query)) == ESP_OK) 
+    		{
+// query now contains: "part=...&ns=...&key=..."
+// 2. Extract individual keys
+			if (httpd_query_key_value(query, "part", part, sizeof(part)) == ESP_OK) 
+	    		{
+				if (httpd_query_key_value(query, "ns", ns, sizeof(ns)) == ESP_OK)
+			    	{
+					if (httpd_query_key_value(query, "key", key, sizeof(key)) == ESP_OK) 
+						ret = ESP_OK;
+					else
+	        			ESP_LOGI(TAG, "missing key");
+					}
+				else
+					ESP_LOGI(TAG, "missing namespace");
+				}
+			else
+				ESP_LOGI(TAG, "missing partition name");
+			}
+		}
+	else
+		ESP_LOGI(TAG, "URI too long (%d)", qlen);
+	if(ret == ESP_OK)
+		{
+		ESP_LOGI(TAG, "part = %s / ns = %s / key = %s", part, ns, key);
+		char *buf = ((struct file_server_data *)req->user_ctx)->scratch;
+		int rcv = 0;
+		const esp_partition_t *np = NULL;
+		esp_partition_iterator_t pit = esp_partition_find(ESP_PARTITION_TYPE_ANY, ESP_PARTITION_SUBTYPE_DATA_NVS, part);
+		if(pit)
+			np = esp_partition_get(pit);
+		esp_partition_iterator_release(pit);
+		if(np)
+			{
+			int received;
+			while (rcv < size) 
+		    	{
+		        ESP_LOGI(TAG, "Remaining size : %d", size - rcv);
+		        // Receive the file part by part into a buffer 
+				if ((received = httpd_req_recv(req, buf, MIN(size - rcv, SCRATCH_BUFSIZE))) < 0) 
+		        	{
+		            if(received == HTTPD_SOCK_ERR_TIMEOUT) 
+		                continue;
+		
+		            ESP_LOGE(TAG, "File reception failed! %s / %d", esp_err_to_name(received), received);
+		            // In case of unrecoverable error,
+		            // Respond with 500 Internal Server Error 
+		            httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Failed to receive file");
+		            return ESP_FAIL;
+		        	}
+				else if(received == 0 && rcv < size)
+		        	{
+					ESP_LOGW(TAG, "Connection closed before receiving all data");
+					return ESP_FAIL;
+					}
+				memcpy(bstring + rcv, buf, received);
+				rcv += received;
+				}
+			nvs_handle_t handle;;
+			ret = nvs_open_from_partition(part, ns, NVS_READWRITE, &handle);
+			if(ret == ESP_OK)
+				{
+				ret = nvs_set_blob(handle, key, bstring, size);
+				if(ret == ESP_OK)
+					{
+					httpd_resp_set_status(req, "200 OK");
+    				httpd_resp_sendstr(req, "Key update OK");
+    				}
+				else
+    				{
+					httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Failed to update the key");
+					}
+				}
+			else
+				httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Failed to open namespace");
+			}
+		else
+			httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "partition not found");
+		}
+	return ret;	
+	}
+#endif

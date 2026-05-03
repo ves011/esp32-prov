@@ -124,13 +124,14 @@ function handleKeys(e)
     }
 function pushupdate(id)
     {
+    var idn = id.split("-");
     for(i = 0; i < updid.length; i++)
         {
-        if(updid[i] == id)
+        if(updid[i] == idn[1])
             break;
         }
     if(i == updid.length)
-        updid.push(id);
+        updid.push(idn);
     }
 function updatelen(e) 
     {
