@@ -21,6 +21,16 @@
 extern "C" {
 #endif
 
+typedef int (*uri_handler_t)(const uint8_t *start, const uint8_t *end, httpd_req_t *req);
+
+typedef struct {
+    const char *uri;
+    const uint8_t *start;
+    const uint8_t *end;
+    const char *type;
+    uri_handler_t page_handler;
+} asset_t;
+
 extern httpd_handle_t w_server;
 esp_err_t example_mount_storage(const char *base_path);
 

@@ -1,0 +1,57 @@
+frame format:
+  - header (manadtory) | payload (optional)
+  - all fields in the header a separated by \1 (\x01\..) including header from payload
+  - all fields in the header are ASCII UTF-8
+  
+  
+  typedef struct 
+  	{
+    int version;
+    uint8_t hdr_fields;
+    uint32_t payload_len;
+    uint64_t timestamp;
+    char *command;
+    char **params;
+    uint8_t *payload;
+	} app_proto_t;
+
+header format
+
+version\1number of fields in the header\1length of payload\1timestamp\1command\1parmeter[1]\1...parameter[n]\1<payload...>
+
+  - version --> shall be convertible to number to allow simple assesment
+  - numer of fields in the header 	--> number of \1 separated fields in the header including version, numer of fields, length...
+  									--> it shall be >= 5
+  - length of payload -> number of bytes following last parameter in the header excluding \1 sparator
+  - timestamp	--> some kind of timestamp which can be used to order partial chunk messages (ms from boot or unix time) 
+  - command --> command
+  - parameter --> list of parametres associated with the command
+  - payload --> stream of bytes of payload length bytes  
+  
+  
+Commands
+	#define SETBOOT 		"setBoot" --> set boot partition
+		number of fields 	=  6
+		parameter1			= partition name
+		payload				= N/A
+		
+	#define USTATUS 	"ustatus"	--> flashing progress can be progress or error
+		number of fields 	=  8
+		parameter1			= status
+			status == progress
+				parameter2 = %complete
+			status == error
+				parameter2 = error reason
+		payload				= N/A
+		
+	#define DSTATUS 	"dstatus"	--> dump partition status
+		number of fields = 8
+		parameter1			= status
+			status == progress  --> not implemented
+				parameter2 = %complete
+			status == error
+				parameter2 = error reason
+		payload				= N/A
+		
+	#define ERASE		"erase"		--> erase partition
+		number of fields = 7

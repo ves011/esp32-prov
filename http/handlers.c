@@ -27,7 +27,7 @@
 #include "ws_client_handler.h"
 #include "handlers.h"
 
-const char *TAG = "handler";
+static const char *TAG = "handler";
 //static int genconf_update(char *params);
 static void enum_partitions(httpd_req_t *req);
 static void insert_part_options(httpd_req_t *req);
@@ -66,7 +66,7 @@ static const char* get_path_from_uri(char *dest, const char *base_path, const ch
     return dest + base_pathlen;
 }
 
-esp_err_t root_get_handler(httpd_req_t *req)
+esp_err_t root_get_handler(const uint8_t *start, const uint8_t *end, httpd_req_t *req)
 	{
 	//char buf[32];
 	char filepath[512];
@@ -118,7 +118,7 @@ esp_err_t root_get_handler(httpd_req_t *req)
     return ESP_OK;
 	}
 
-esp_err_t root_update_handler(httpd_req_t *req)
+esp_err_t root_update_handler(const uint8_t *start, const uint8_t *end, httpd_req_t *req)
 	{
 	ESP_LOGI(TAG, "root_update_handler %s", req->uri);
 	char*  buf = malloc(req->content_len + 2);
@@ -183,7 +183,7 @@ void enum_partitions(httpd_req_t *req)
 			strcpy(part_chunk, "<tr><td>");
 			if(np->subtype == ESP_PARTITION_SUBTYPE_DATA_NVS)
 				{
-				strlcat(part_chunk, "<a href=\"nvs_editor.html?", sizeof(part_chunk));
+				strlcat(part_chunk, "<a href=\"nvs?", sizeof(part_chunk));
 				strlcat(part_chunk, np->label, sizeof(part_chunk));
 				strlcat(part_chunk, "\">", sizeof(part_chunk));
 				strlcat(part_chunk, np->label, sizeof(part_chunk));
@@ -270,7 +270,7 @@ void insert_part_options(httpd_req_t *req)
 	
 esp_err_t ws_handler(httpd_req_t *req)
 	{
-	wsmsqg_t msg;
+	wsmsg_t msg;
     if (req->method == HTTP_GET) 
     	{
         ESP_LOGI(TAG, "Handshake done, the new connection was opened");
@@ -406,10 +406,11 @@ int set_bp(char *pName)
 	}
 	
 	
-/* Handler to upload a file onto the server */
-esp_err_t flashing_post_handler(httpd_req_t *req)
+/* Handler to upload a file and flash it to partition of choice*/
+//esp_err_t flashing_post_handler(httpd_req_t *req)
+esp_err_t flashing_post_handler(const uint8_t *start, const uint8_t *end, httpd_req_t *req)
 	{
-	wsmsqg_t msg;
+	char btmp[128];
 	int idx, i, rcv, size = 0, ret;
     char part_buf[20];
 	strlcpy(part_buf, req->uri + strlen(PART_UPLOAD), sizeof(part_buf));
@@ -427,12 +428,8 @@ esp_err_t flashing_post_handler(httpd_req_t *req)
 		idx = i;
 	else
 		{
-		msg.fd = httpd_req_to_sockfd(req);
-        sprintf(msg.payload.strpayload, USTATUS"\1error\1Invalid partition \"%s\"\1", part);
-        msg.len = strlen(msg.payload.strpayload); 
-        xQueueSend(ws_msg_queue, &msg, pdMS_TO_TICKS(20));
-        httpd_resp_set_status(req, "303 file size mismatch");
-    	httpd_resp_sendstr(req, "invalid partition name");
+		snprintf(btmp, sizeof(btmp), "Invalid partition name: \"%s\"", part_buf);
+		ws_send_status(OP_UPLOAD, PAR_ERROR, -1, btmp);
         return ESP_OK;
 		}
     /* Retrieve the pointer to scratch buffer for temporary storage */
@@ -440,14 +437,14 @@ esp_err_t flashing_post_handler(httpd_req_t *req)
     int received;
 	if(size > pTable[idx].size)
 		{
-    	httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "file size larger than partition size");
+		ws_send_status(OP_UPLOAD, PAR_ERROR, -1, "file size larger than partition size");
     	return ESP_OK;
 		}
 	else
 		{
 		if(pTable[idx].run)
 			{
-    		httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "flashing running partition not allowed");
+			ws_send_status(OP_UPLOAD, PAR_ERROR, -1, "flashing running partition not allowed");
     		return ESP_OK;
 			}
 		}
@@ -462,13 +459,12 @@ esp_err_t flashing_post_handler(httpd_req_t *req)
 		pit = esp_partition_next(pit);
 		}
 	esp_partition_iterator_release(pit);
-	if(!np)
+	if(!pit)
 		{
-		char bmsg[80];
-		snprintf(bmsg, sizeof(bmsg), "Partition not found: %s", part);
-		ESP_LOGE(TAG, "%s", bmsg);
-    	httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, bmsg);
-    	return ESP_FAIL;
+		snprintf(btmp, sizeof(btmp), "Partition not found: %s", part);
+		ESP_LOGE(TAG, "%s", btmp);
+		ws_send_status(OP_UPLOAD, PAR_ERROR, -1, btmp);
+    	return ESP_OK;
 		}
 	ret = ESP_OK;
 	if(np && np->subtype == ESP_PARTITION_SUBTYPE_DATA_NVS)
@@ -478,14 +474,14 @@ esp_err_t flashing_post_handler(httpd_req_t *req)
 		ret = esp_partition_erase_range(np, 0, np->size);
 		if(ret != ESP_OK)
 			{
-			sprintf(msg.payload.strpayload, "error erasing partition\n%s", esp_err_to_name(ret));
-			httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, msg.payload.strpayload);
+			snprintf(btmp, sizeof(btmp), "error erasing partition\n%s", esp_err_to_name(ret));
+			ws_send_status(OP_UPLOAD, PAR_ERROR, -1, btmp);
 			return ESP_OK;
 			}
 		}
 	else
 		{
-		httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "error while dinit NVS partition");
+		ws_send_status(OP_UPLOAD, PAR_ERROR, -1, "error while dinit NVS partition");
 		return ESP_OK;
 		}
 	rcv = 0;
@@ -498,71 +494,66 @@ esp_err_t flashing_post_handler(httpd_req_t *req)
         	{
             if(received == HTTPD_SOCK_ERR_TIMEOUT) 
                 continue;
-
-            ESP_LOGE(TAG, "File reception failed! %s / %d", esp_err_to_name(received), received);
+			snprintf(btmp, sizeof(btmp), "File reception failed! - %d", received);
+            ESP_LOGE(TAG, "%s", btmp);
             /* In case of unrecoverable error,
             Respond with 500 Internal Server Error */
-            httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Failed to receive file");
-            msg.fd = httpd_req_to_sockfd(req);
-            sprintf(msg.payload.strpayload, USTATUS"\1error\1ESP failed to receive file\1");
-            msg.len = strlen(msg.payload.strpayload); 
-            xQueueSend(ws_msg_queue, &msg, pdMS_TO_TICKS(20));
+            httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, btmp);
             return ESP_FAIL;
         	}
 		else if(received == 0 && rcv < size)
         	{
 			ESP_LOGW(TAG, "Connection closed before receiving all data");
+			httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Connection closed before receiving all data");
 			return ESP_FAIL;
 			}
         ESP_LOGI(TAG, "Receiving file : %s size: %d", part, received);
         ret = esp_partition_write(np, rcv, buf, received);
 		if(ret != ESP_OK)
 			{
-			sprintf(msg.payload.strpayload, "error writing partition\n%s", esp_err_to_name(ret));
-			httpd_resp_set_status(req, "303 file size mismatch");
-			httpd_resp_sendstr(req, msg.payload.strpayload);
+			snprintf(btmp, sizeof(btmp), "error writing partition: %s", esp_err_to_name(ret));
+			ws_send_status(OP_UPLOAD, PAR_ERROR, ret, btmp);
 			return ESP_OK;
 			}
-        msg.fd = httpd_req_to_sockfd(req);
-        sprintf(msg.payload.strpayload, USTATUS"\1progress\1%d\1", rcv * 100 / size); 
-		msg.len = strlen(msg.payload.strpayload);
-        xQueueSend(ws_msg_queue, &msg, pdMS_TO_TICKS(20));
+        snprintf(btmp, sizeof(btmp), "%d", rcv * 100 / size);
+        ws_send_status(OP_UPLOAD, PAR_PROGRESS, 0, btmp); 
         rcv += received;
     	}
 	if(np && np->subtype == ESP_PARTITION_SUBTYPE_DATA_NVS)
+		{
 		ret = nvs_flash_init_partition(np->label);
+		if(ret != ESP_OK)
+			{
+			ws_send_status(OP_UPLOAD, PAR_ERROR, -1, "error while dinit NVS partition");
+			return ESP_OK;
+			}
+		}
     ESP_LOGI(TAG, "File reception complete");
     httpd_resp_set_status(req, "200 OK");
     httpd_resp_sendstr(req, "File upload status");
     return ESP_OK;
 	}
 
-esp_err_t dump_get_handler(httpd_req_t *req)
+//esp_err_t dump_get_handler(httpd_req_t *req)
+esp_err_t dump_get_handler(const uint8_t *start, const uint8_t *end, httpd_req_t *req)
 	{
     char pname[20];
     char *buf;
-    int sent, size, ret, sz2r, bsize;
-    wsmsqg_t msg;
+    int sent, size, ret = ESP_FAIL, sz2r, bsize = 4096;
     
-    //strncpy(buf, req->uri, 30);
-	//ESP_LOGI(TAG, "download handler: %d", strlen(req->uri));
-	//vTaskDelay(pdMS_TO_TICKS(5000));
-	//strcpy(pname, req->uri + strlen("/download/"));
-	
-	buf = calloc(5000, 1);
+	buf = calloc(bsize, 1);
 	if(buf == NULL)
 		{
-		ESP_LOGI(TAG, "cannot allocate 5000 bytes");
-		return ESP_FAIL;
+		ESP_LOGI(TAG, "cannot allocate chunk buffer bytes");
+		ws_send_status(OP_DOWNLOAD, PAR_ERROR, -1, "cannot allocate chunk buffer");
+		return ESP_OK;
 		}
-	bsize = 5000;
-	strncpy(buf, req->uri, 30);
-	strcpy(pname, req->uri + strlen(PART_DOWNLOAD));
+
+	strncpy(pname, req->uri + strlen(PART_DOWNLOAD), sizeof(pname) -1 );
 	ESP_LOGI(TAG, "download handler: %s %d", pname, strlen(req->uri));
 	
 	const esp_partition_t *np = NULL;
 	esp_partition_iterator_t pit = esp_partition_find(ESP_PARTITION_TYPE_ANY, ESP_PARTITION_SUBTYPE_ANY, NULL);
-	//esp_partition_iterator_t it = pit;
     while(pit)
     	{
 		np = esp_partition_get(pit);
@@ -572,9 +563,14 @@ esp_err_t dump_get_handler(httpd_req_t *req)
 		}
 	if(pit)
 		{
+		char dispo[64];
 		size = np->size;
 		sent = 0;
 		httpd_resp_set_type(req, "application/octet-stream");
+	
+	    snprintf(dispo,  sizeof(dispo), "attachment; filename=\"%s.bin\"", pname);
+		httpd_resp_set_hdr(req, "Content-Disposition", dispo);
+		
 		while(sent < size)
 			{
 			sz2r = MIN(bsize, size - sent);
@@ -582,34 +578,24 @@ esp_err_t dump_get_handler(httpd_req_t *req)
 			if(ret != ESP_OK)
 				{
 				ESP_LOGI(TAG, "error reading partition %d", ret);
-				// Abort sending file 
-                httpd_resp_send_chunk(req, NULL, 0);
-	            msg.fd = httpd_req_to_sockfd(req);
-    	        sprintf(msg.payload.strpayload, DSTATUS"\1progress\1error reading partition %s\n%s\1", np->label, esp_err_to_name(ret));
-        	    msg.len = strlen(msg.payload.strpayload); 
-            	xQueueSend(ws_msg_queue, &msg, pdMS_TO_TICKS(20));
-				return ESP_OK;
+				ws_send_status(OP_DOWNLOAD, PAR_ERROR, ret, esp_err_to_name(ret));
+				break;
 				}
-			sent += sz2r;
 			ret = httpd_resp_send_chunk(req, buf, sz2r);
 			if (ret != ESP_OK) 
 				{
-                ESP_LOGE(TAG, "File sending failed!");
-                // Abort sending file 
-                httpd_resp_send_chunk(req, NULL, 0);
-                // Respond with 500 Internal Server Error 
-                httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Failed to send file");
-                msg.fd = httpd_req_to_sockfd(req);
-    	        sprintf(msg.payload.strpayload, DSTATUS"\1progress\1httpd error sending file\n%s\1", esp_err_to_name(ret));
-        	    msg.len = strlen(msg.payload.strpayload); 
-            	xQueueSend(ws_msg_queue, &msg, pdMS_TO_TICKS(20));
-               	return ESP_FAIL;
+				ESP_LOGE(TAG,"send chunk failed: %s", esp_err_to_name(ret));
+				break;
            		}
-           	//ESP_LOGI(TAG, "dump file %d", (sent * 100) / size);
+           	sent += sz2r;
 			}
 		}
+	else
+		ws_send_status(OP_DOWNLOAD, PAR_ERROR, -1, "partition not found");
+	free(buf);
 	esp_partition_iterator_release(pit);
-    ESP_LOGI(TAG, "File sending complete");
-    httpd_resp_send_chunk(req, NULL, 0);
+    ESP_LOGI(TAG, "File send status %d", ret);
+    if(ret == ESP_OK)
+    	httpd_resp_send_chunk(req, NULL, 0);
     return ESP_OK;
 	}

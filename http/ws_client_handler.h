@@ -9,6 +9,7 @@
 #define MAIN_WS_CLIENT_HANDLER_H_
 
 #include "esp_http_server.h"
+#include "app_proto.h"
 #define MSG_RECEIVED		1
 #define MSG_2SEND			2
 
@@ -38,12 +39,12 @@ server to client 	ERASESTATUS\1progress\1progress message\1
 
 // erase partition				- client2server
 //								- response ERASESTATUS
-#define ERASE		"erase"
-#define ERASESTATUS	"erasestatus"
+//#define ERASE		"erase"
+//#define ERASESTATUS	"erasestatus"
 
 // create NVS key/value pair	- client2server
 // responds with ESP_OK/ESP_FAIL
-#define CREATEKEY		"createkey"
+//#define CREATEKEY		"createkey"
 
 /*
 update key flow
@@ -53,10 +54,10 @@ update key flow
 	for NVS_TYPE_STR or BLOB step3 repeats util entire key value is sent
 4.server 2 client		UPDATE_KEY\1keyID\1keyName\1error code\1error string
 */
-#define UPD_REQUEST		"update req"
-#define SEND_VAL		"send val"
-#define UPDATE_VAL		"update val"
-#define UPDATE_KEY		"update key"
+//#define UPD_REQUEST		"update req"
+//#define SEND_VAL		"send val"
+//#define UPDATE_VAL		"update val"
+//#define UPDATE_KEY		"update key"
 
 /*
 update file flow
@@ -66,18 +67,18 @@ update file flow
 	#3 repeats until sum(chunk size) = legnth
 4. server 2 client		UPDATE_FILE\1file-IDX\1error code\1error string
 */
-#define UPD_FILE_REQ	"update file req"
-#define SEND_FILE		"send file"
-#define FILE_CHUNK		"file chunk"
-#define UPDATE_FILE		"update file"
+//#define UPD_FILE_REQ	"update file req"
+//#define SEND_FILE		"send file"
+//#define FILE_CHUNK		"file chunk"
+//#define UPDATE_FILE		"update file"
 
 /*
 create file flow
 1. client 2 server		CREATE_FILE_REQ\1file-name\1
 2. server 2 client		CREATE_FILE\1error code\1error string
 */
-#define CREATE_FILE_REQ	"update file req"
-#define CREATE_FILE		"update file"
+//#define CREATE_FILE_REQ	"update file req"
+//#define CREATE_FILE		"update file"
 
 /*
 delete key flow
@@ -85,14 +86,20 @@ client 2 server			DELETE_NS\1namespaceName\1
 						DELETE_KEY\1keyID\1
 server 2 client			DELETE_KEY_RESP\1key|namespace name\1error code\1error string\1
 */
-#define DELETE_NS		"delete ns"
-#define DELETE_KEY		"delete key"
-#define DELETE_KEY_RESP	"delete key resp"
+//#define DELETE_NS		"delete ns"
+//#define DELETE_KEY		"delete key"
+//#define DELETE_KEY_RESP	"delete key resp"
 
 //server 2 client		DUMP_KEY\1keyID\1keyName\1error code\1error string\1
-#define DUMP_KEY		"dump key"
+//#define DUMP_KEY		"dump key"
 
+typedef void (*cmd_handler_t)(app_proto_t *msg);
 
+typedef struct 
+	{
+    const char *cmd;
+    cmd_handler_t handler;
+	} cmd_entry_t;
 
 typedef struct
 	{
@@ -103,7 +110,7 @@ typedef struct
 		char strpayload[MAX_KEY_SIZE + 100];
 		uint8_t binpayload[MAX_KEY_SIZE + 100];
 		} payload;
-	} wsmsqg_t;
+	} wsmsg_t;
 	
 struct async_resp_arg {
     httpd_handle_t hd;
@@ -111,10 +118,18 @@ struct async_resp_arg {
     char *payload;
 };
 
+typedef struct
+	{
+	int err;
+	char errmsg[128];
+	} errrep_t;
+	
 extern QueueHandle_t ws_msg_queue;
 int create_ws_client_handler();
 void send_strmsg(char *msg);
 //void send_binmsg(char *msg, int len);
+void ws_send_status(const char *op, const char *status, int err,  const char *txt);
+void send_rsp_cmd(app_proto_t *msgIn, int err, char *errtxt);
 
 
 #endif /* MAIN_WS_CLIENT_HANDLER_H_*/

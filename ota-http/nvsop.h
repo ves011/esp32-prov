@@ -9,11 +9,15 @@
 #define MAIN_NVSOP_H_
 
 #include "esp_http_server.h"
+#include "ws_client_handler.h"
 #include "nvs.h"
 
-#define UPDATE_READY		0
-#define UPDATE_INPROGRESS	1
-#define UPDATE_COMPLETE		2
+#define MAX_CONCURRENT_UPDATES 10
+
+#define UPDATE_NOTUSED		0
+#define UPDATE_READY		1
+#define UPDATE_INPROGRESS	2
+#define UPDATE_COMPLETE		3
 
 typedef struct
 	{
@@ -62,8 +66,11 @@ void nvs_update_task(void *pvParameters);
 //int update_keyval(int idxn, int idxk, void *pstr);
 //int set_nvs_value(int idxkey, void *val);
 int nvs_set_val(int type, nvs_handle_t handle, char *name, int len, void *val);
-int erase_nvs_key(char *ns, char *key);
+int nvs_update_key(int type, int nsidx, int keyidx, int len, void *val);
+int erase_nvs_key(int nsID, int keyID);
 esp_err_t nvskey_get_handler(httpd_req_t *req);
+int init_update_key(int idxns, int idxkey, int ktype, size_t upd_len, errrep_t *errrep);
+int update_key_chunk(int idxns, int idxkey, int offset, int len, void *chunk, errrep_t *errrep);
 #if 0
 esp_err_t nvskey_upload_handler(httpd_req_t *req);
 #endif

@@ -18,12 +18,16 @@
 #include <nvs.h>
 #include "esp_partition.h"
 #include "handlers.h"
+#include "html_builder.h"
 #include "nvsop.h"
 #include "nvs_editor.h"
 
 static const char *TAG = "NVSEDITOR";
 #define BUFSIZE			1024
 
+static void insert_ns_row(httpd_req_t *req, int ns_idx);
+static void insert_key_row(httpd_req_t *req, keydef_t *kd);
+static void insert_input_field(httpd_req_t *req, keydef_t *kd);
 int get_nvs_entries(char *pName);
 int get_key_val(keydef_t *kd)
 	{
@@ -108,8 +112,7 @@ int get_key_val(keydef_t *kd)
 		}
 	return ESP_OK;
 	}
-
-esp_err_t nvs_get_handler(httpd_req_t *req)
+esp_err_t nvs_get_handler(const uint8_t *start, const uint8_t *end, httpd_req_t *req)
 	{
 	char *buf, pn[32];
 	char *pchar, *last_pchar, *tchar;
@@ -117,28 +120,10 @@ esp_err_t nvs_get_handler(httpd_req_t *req)
 	nvs_handle_t nvsh;
 	int i, j, ret;
 	keydef_t keydef;
-	char *bstring = server_data.scratch;
-	extern char nvs_page_start[] asm("_binary_nvseditor_html_start");
+	//extern char nvs_page_start[] asm("_binary_nvseditor_html_start");
 	
-    //extern char nvs_page_end[]   asm("_binary_nvseditor_html_end");
-    //insert_value("devName", dev_conf.dev_name);
-   // const size_t nvs_page_size = (nvs_page_end - nvs_page_start);
-    
     ESP_LOGI(TAG, "uri: %s", req->uri);
-    
-    httpd_resp_set_type(req, "text/html");
-	
-    last_pchar = nvs_page_start;
-    pchar = strstr(last_pchar, "partInfo");
-    if(!pchar)
-    	{
-		httpd_resp_send_chunk(req, "Wrong page format</h3></div></body></html>", HTTPD_RESP_USE_STRLEN);
-		httpd_resp_send_chunk(req, NULL, 0);
-        return ESP_OK;
-		}
-    httpd_resp_send_chunk(req, last_pchar, pchar - last_pchar);
-    last_pchar = pchar + strlen("partInfo");
-    	
+
 	tchar = strchr(req->uri, '?');
 	if(tchar && strlen(tchar + 1) < sizeof(pn))
 		strcpy(pn, tchar + 1);
@@ -148,6 +133,17 @@ esp_err_t nvs_get_handler(httpd_req_t *req)
 		httpd_resp_send_chunk(req, NULL, 0);
         return ESP_OK;
 		}
+			
+    last_pchar = (char *)start;
+    pchar = strstr(last_pchar, "partInfo");
+    if(!pchar)
+    	{
+		httpd_resp_send_chunk(req, "Wrong page format</h3></div></body></html>", HTTPD_RESP_USE_STRLEN);
+		httpd_resp_send_chunk(req, NULL, 0);
+        return ESP_OK;
+		}
+    httpd_resp_send_chunk(req, last_pchar, pchar - last_pchar);
+    last_pchar = pchar + strlen("partInfo");
     
     const esp_partition_t *np = NULL;
 	esp_partition_iterator_t pit = esp_partition_find(ESP_PARTITION_TYPE_ANY, ESP_PARTITION_SUBTYPE_ANY, NULL);
@@ -182,8 +178,6 @@ esp_err_t nvs_get_handler(httpd_req_t *req)
 
 	if(pchar) // insert rows in partinfo table
     	{
-		//httpd_resp_send_chunk(req, last_pchar, pchar - last_pchar);
-		//last_pchar = pchar + strlen("partInfo");
 		snprintf(buf, BUFSIZE, "<table><tr style=\"font-size: 22px;\"><td colspan=\"2\">Partition name:</td><td>%s</td></tr>", np->label);
 		httpd_resp_send_chunk(req, buf, strlen(buf));
 		
@@ -228,30 +222,18 @@ esp_err_t nvs_get_handler(httpd_req_t *req)
 // insert namespaces and keys
 		strcpy(buf, 
 "<table class=\"fixed\">\
-<tr>\
-	<th style=\"width: 40px; text-align: center; font-size: 40px;\"></th>\
-	<th style=\"width: 140px;\">name</th>\
-	<th style=\"width: 140px;\">type</th>\
-	<th style=\"width: 80px;\">length(B)</th>\
-	<th style=\"width: 680px;\">value&nbsp;&nbsp;<button id = \"commit_ch\" type=\"button\" disabled onclick=\"commitc()\">Commit changes</button></th>\
-    <th style=\"width: 80px;\"><button style=\"width: 80px;\" type=\"button\" onclick=\"delsel()\">Erase sel</button></th>\
-</tr>");		
+<tr>\n\
+	<th style=\"width: 40px; text-align: center; font-size: 40px;\"></th>\n\
+	<th style=\"width: 140px;\">name</th>\n\
+	<th style=\"width: 140px;\">type</th>\n\
+	<th style=\"width: 80px;\">length(B)</th>\n\
+	<th style=\"width: 680px;\">value&nbsp;&nbsp;<button id = \"commit_ch\" type=\"button\" disabled onclick=\"commitc()\">Commit changes</button></th>\n\
+    <th style=\"width: 80px;\"><button style=\"width: 80px;\" type=\"button\" onclick=\"delsel()\">Erase sel</button></th>\n\
+</tr>\n");		
 		httpd_resp_send_chunk(req, buf, strlen(buf));
 		for(i = 0; i < nns; i++)
 			{
-			strcpy(buf, "<tr class=\"strong\"><td class=\"shsign\"><a id = \"");
-			strcat(buf, namespace[i].name);
-			strcat(buf, "\" style=\"text-decoration: none;\" href=\"#\" onclick=\"showhide(\'");
-			strcat(buf, namespace[i].name);
-			strcat(buf, "\')\">+</a></td>");
-			httpd_resp_send_chunk(req, buf, strlen(buf));
-//namespace name			
-        	snprintf(buf, BUFSIZE, "<td colspan=\"4\"><b>%s</b></td>", namespace[i].name);
-        	httpd_resp_send_chunk(req, buf, strlen(buf));
-//namespace checkbox        	
-        	snprintf(buf, BUFSIZE, "<td><label> &nbsp; &nbsp; &nbsp; &nbsp;</label><input class=\"sel2delns\" type=\"checkbox\" name=\"%s\"></td></tr>\n", namespace[i].name);
-        	httpd_resp_send_chunk(req, buf, strlen(buf));
-        	
+			insert_ns_row(req, i);
         	ret = nvs_open_from_partition(pn, namespace[i].name, NVS_READONLY, &nvsh);
         	if(ret == ESP_OK)
         		{
@@ -259,114 +241,14 @@ esp_err_t nvs_get_handler(httpd_req_t *req)
 	        		{
 					if(nvskey[j].ns_idx == i)
 						{
+						keydef.ns_idx = i;
+						keydef.key_idx = j;
 						keydef.nvsh = nvsh;
 						keydef.type = nvskey[j].type;
 						strcpy(keydef.name, nvskey[j].name);
 						get_key_val(&keydef);
 						nvskey[j].size = keydef.len;
-						
-						snprintf(buf, BUFSIZE, "<tr class=\"%s\" style=\"display: none;\"><td></td>", namespace[i].name);
-						httpd_resp_send_chunk(req, buf, strlen(buf));
-	//key name + key type					
-						snprintf(buf, BUFSIZE, "<td id=\"[%d][%d]-name\">%s</td><td id=\"[%d][%d]-type\" name=\"%d\">%s</td>", i, j, nvskey[j].name, i, j, nvskey[j].type, keydef.typestr);
-						httpd_resp_send_chunk(req, buf, strlen(buf));
-	//length					
-						snprintf(buf, BUFSIZE, "<td id=\"[%d][%d]-len\">%d</td>", i, j, nvskey[j].size);
-						httpd_resp_send_chunk(req, buf, strlen(buf));
-	// key value
-						if(nvskey[j].type < NVS_TYPE_STR)
-							{
-							if(nvskey[j].type & 0x10)
-								snprintf(buf, BUFSIZE, "<td><input id = \"[%d][%d]\" class = \"ied\" type=\"text\" value=\"%s\"></td>", i, j, keydef.valstr);
-							else
-								snprintf(buf, BUFSIZE, "<td><input id = \"[%d][%d]\" class = \"ued\" type=\"text\" value=\"%s\"></td>", i, j, keydef.valstr);
-							httpd_resp_send_chunk(req, buf, strlen(buf));
-							}
-						else if(nvskey[j].type == NVS_TYPE_STR)
-							{
-							snprintf(buf, BUFSIZE, "<td><textarea id=\"[%d][%d]\" class=\"sed\" style=\"width: 675px;resize: vertical;\" rows=\"1\">", i, j);
-							httpd_resp_send_chunk(req, buf, strlen(buf));
-							//sprintf(bstring, "<td><textarea id=\"[%d][%d]\" style=\"width: 675px;resize: vertical;\" rows=\"1\">", i, j);
-							if(nvs_get_str(nvsh, nvskey[j].name, 
-								bstring, &keydef.len) == ESP_OK)
-								{
-								strcat(bstring, "</textarea></td>");
-								httpd_resp_send_chunk(req, bstring, strlen(bstring));
-								}
-							else
-								{
-								strcpy(bstring, "Error retrieving kay value</textarea></td>");
-								httpd_resp_send_chunk(req, bstring, strlen(bstring));
-								}
-							}
-						else if(nvskey[j].type == NVS_TYPE_BLOB)
-							{
-							size_t required_size = 0;
-    						esp_err_t err = nvs_get_blob(nvsh, nvskey[j].name, NULL, &required_size);
-							if(err != ESP_OK)
-    							{
-								snprintf(buf, BUFSIZE, "<td>Error retrieving BLOB size<br>");
-        						httpd_resp_send_chunk(req, buf, strlen(buf));
-								}
-							else if(required_size > MAX_BLOB_DISPLAY)
-								{
-        						snprintf(buf, BUFSIZE, "<td><div class=\"large-blob\"><b>!!! Blob size > %d !!!</b></div><br>", MAX_BLOB_DISPLAY);
-        						httpd_resp_send_chunk(req, buf, strlen(buf));
-								}
-							else
-								{
-								ret = nvs_get_blob(nvsh, nvskey[j].name, bstring, &required_size);
-								if(ret == ESP_OK)
-									{
-									int is = 0;
-									char bhex[6];
-									snprintf(buf, BUFSIZE, "<td><textarea id=\"[%d][%d]\" class=\"hed\" style=\"width: 675px;resize: vertical;\" rows=\"1\">", i, j);
-									httpd_resp_send_chunk(req, buf, strlen(buf));
-									buf[0] = 0;
-									while(is < required_size)
-										{
-										sprintf(bhex, "%02x ", bstring[is]);
-										strcat(buf,bhex);
-										is++;
-										if(is % 8 == 0 && is % 16)
-											strcat(buf, "- ");
-										
-										if(is % 16 == 0)
-											{
-											strcat(buf, "\n");
-											httpd_resp_send_chunk(req, buf, strlen(buf));
-											buf[0] = 0;
-											}
-										}
-									strcat(buf, "</textarea><br>");
-									httpd_resp_send_chunk(req, buf, strlen(buf));
-									}
-								else
-									{
-									strcpy(buf, "<td>Error retrieving BLOB from NVS<br>");
-									httpd_resp_send_chunk(req, buf, strlen(buf));
-									}
-								}
-							if(required_size < MAX_BLOB_DISPLAY)
-								{
-								snprintf(buf, BUFSIZE,"\
-<button id=\"dump\" onclick=\"dump(\'[%d][%d]\')\">Dump to...</button>&nbsp;&nbsp;&nbsp;\
-<button id=\"upload\" type=\"button\" onclick=\"document.getElementById('[%d][%d]-file').click()\">Upload from file</button>&nbsp;\
-<label id=\"[%d][%d]-ud\"></label>\
-<input id=\"[%d][%d]-file\" type=\"file\" onchange=\"loadf('[%d][%d]')\" style=\"display: none;\"><br>&nbsp;</td>", i, j, i, j, i, j, i, j, i, j);
-								}
-							else
-								{
-								snprintf(buf, BUFSIZE,
-									"<button id=\"dump\" onclick=\"dump(\'[%d][%d]\')\">Dump to...</button>&nbsp;&nbsp;&nbsp;<br>&nbsp;</td>", 
-										i, j);
-								}
-							httpd_resp_send_chunk(req, buf, strlen(buf));
-							}
-// key checkbox
-						snprintf(buf, BUFSIZE, "<td><label> &nbsp; &nbsp; &nbsp; &nbsp;</label><input class=\"sel2del\" type=\"checkbox\" name=\"%s\" id=\"[%d][%d]-sel\"></td></tr>\n", namespace[i].name, i, j);
-	        			ret = httpd_resp_send_chunk(req, buf, strlen(buf));
-	        								
+						insert_key_row(req, &keydef);
 						}
 					}
 				nvs_close(nvsh);
@@ -384,4 +266,132 @@ esp_err_t nvs_get_handler(httpd_req_t *req)
 	httpd_resp_send_chunk(req, NULL, 0);
 	free(buf);
     return ESP_OK;
+	}
+
+static void insert_ns_row(httpd_req_t *req, int ns_idx)
+	{
+	char buf[BUFSIZE], esc_name[100];
+	html_escape_str(esc_name, sizeof(esc_name), namespace[ns_idx].name);
+	snprintf(buf, BUFSIZE, 
+"<tr class=\"strong\"><td class=\"shsign\"><a id = \"ns_%d\" style=\"text-decoration: none;\" href=\"#\" onclick=\"showhide(this.id)\">+</a></td>\n \
+<td colspan=\"4\"><b>%s</b></td>" \
+"<td><label> &nbsp; &nbsp; &nbsp; &nbsp;</label><input class=\"sel2delns\" type=\"checkbox\" name=\"ns_%d\"></td></tr>\n",
+			ns_idx, esc_name, ns_idx);
+ 	httpd_resp_send_chunk(req, buf, strlen(buf));
+	}
+static void insert_key_row(httpd_req_t *req, keydef_t *kd)
+	{
+	char buf[BUFSIZE];
+	char esc_name[100];
+	html_escape_str(esc_name, sizeof(esc_name), kd->name);
+	snprintf(buf, BUFSIZE, "<tr class=\"ns_%d\" style=\"display: none;\"><td></td>", kd->ns_idx);
+	httpd_resp_send_chunk(req, buf, strlen(buf));
+	//key name + key type					
+	snprintf(buf, BUFSIZE, "<td id=\"kn_%d_%d\">%s</td><td id=\"t_%d_%d\" name=\"%d\">%s</td>", kd->ns_idx, kd->key_idx, esc_name, kd->ns_idx, kd->key_idx, kd->type, kd->typestr);
+	httpd_resp_send_chunk(req, buf, strlen(buf));
+	//length					
+	snprintf(buf, BUFSIZE, "<td id=\"l_%d_%d\">%d</td>", kd->ns_idx, kd->key_idx, kd->len);
+	httpd_resp_send_chunk(req, buf, strlen(buf));
+	insert_input_field(req, kd);
+	// key checkbox
+	snprintf(buf, BUFSIZE, 
+	"<td><label> &nbsp; &nbsp; &nbsp; &nbsp;</label><input class=\"sel2del\" type=\"checkbox\" name=\"ns_%d\" id=\"sd_%d_%d\"></td></tr>\n", 
+		kd->ns_idx, kd->ns_idx, kd->key_idx);
+	httpd_resp_send_chunk(req, buf, strlen(buf));
+	}
+	
+static void insert_input_field(httpd_req_t *req, keydef_t *kd)
+	{
+	char buf[BUFSIZE];
+	int ret;
+	char *bstring = server_data.scratch;
+	if(kd->type < NVS_TYPE_STR)
+		{
+		if(kd->type & 0x10)
+			snprintf(buf, BUFSIZE, "<td><input id = \"%d_%d\" class = \"ied\" type=\"text\" value=\"%s\"></td>", kd->ns_idx, kd->key_idx, kd->valstr);
+		else
+			snprintf(buf, BUFSIZE, "<td><input id = \"%d_%d\" class = \"ued\" type=\"text\" value=\"%s\"></td>", kd->ns_idx, kd->key_idx, kd->valstr);
+		httpd_resp_send_chunk(req, buf, strlen(buf));
+		}
+	else if(kd->type == NVS_TYPE_STR)
+		{
+		snprintf(buf, BUFSIZE, "<td><textarea id=\"%d_%d\" class=\"sed\" style=\"width: 675px;resize: vertical;\" rows=\"1\">", kd->ns_idx, kd->key_idx);
+		httpd_resp_send_chunk(req, buf, strlen(buf));
+		//sprintf(bstring, "<td><textarea id=\"[%d][%d]\" style=\"width: 675px;resize: vertical;\" rows=\"1\">", i, j);
+		if(nvs_get_str(kd->nvsh, kd->name, bstring, &kd->len) == ESP_OK)
+			{
+			buf[0] = 0;
+			int pos = 0;
+			char eb[10];
+			while(pos < kd->len)
+				{
+				int len = strlcat(buf, html_escape_chr(bstring[pos++], eb), BUFSIZE);
+				if(len > BUFSIZE - 50)
+					{
+					httpd_resp_send_chunk(req, buf, strlen(buf));
+					buf[0] = 0;
+					}
+				}
+			if(buf[0])			
+				httpd_resp_send_chunk(req, buf, strlen(buf));
+			strcpy(buf, "</textarea></td>");
+			httpd_resp_send_chunk(req, buf, strlen(buf));
+			}
+		else
+			{
+			strcpy(bstring, "Error retrieving kay value</textarea></td>");
+			httpd_resp_send_chunk(req, bstring, strlen(bstring));
+			}
+		}
+	else if(kd->type == NVS_TYPE_BLOB)
+		{
+		if(kd->len > MAX_BLOB_DISPLAY)
+			{
+			snprintf(buf, BUFSIZE, "<td><div class=\"large-blob\"><b>!!! Blob size > %d !!!</b></div><br> \
+<button id=\"dump\" onclick=\"dump(\'%d_%d\')\">Dump to...</button>&nbsp;&nbsp;&nbsp;<br>&nbsp;</td>", 
+				MAX_BLOB_DISPLAY, kd->ns_idx, kd->key_idx);
+			httpd_resp_send_chunk(req, buf, strlen(buf));
+			}
+		else
+			{
+			ret = nvs_get_blob(kd->nvsh, kd->name, bstring, &kd->len);
+			if(ret != ESP_OK)
+				{
+				strcpy(buf, "<td>Error retrieving BLOB from NVS<br>");
+				httpd_resp_send_chunk(req, buf, strlen(buf));
+				}
+			else
+				{
+				int is = 0;
+				char bhex[6];
+				snprintf(buf, BUFSIZE, "<td><textarea id=\"%d_%d\" class=\"hed\" style=\"width: 675px;resize: vertical;\" rows=\"1\">", kd->ns_idx, kd->key_idx);
+				httpd_resp_send_chunk(req, buf, strlen(buf));
+				buf[0] = 0;
+				while(is < kd->len)
+					{
+					sprintf(bhex, "%02x ", bstring[is]);
+					strcat(buf,bhex);
+					is++;
+					if(is % 8 == 0 && is % 16)
+						strcat(buf, "- ");
+					
+					if(is % 16 == 0)
+						{
+						strcat(buf, "\n");
+						httpd_resp_send_chunk(req, buf, strlen(buf));
+						buf[0] = 0;
+						}
+					}
+				strcat(buf, "</textarea><br>");
+				httpd_resp_send_chunk(req, buf, strlen(buf));
+				snprintf(buf, BUFSIZE,"\
+<button id=\"dump\" onclick=\"dump(\'%d_%d\')\">Dump to...</button>&nbsp;&nbsp;&nbsp;\
+<button id=\"upload\" type=\"button\" onclick=\"document.getElementById('f_%d_%d').click()\">Upload from file</button>&nbsp;\
+<label id=\"u_%d_%d\"></label>\
+<input id=\"f_%d_%d\" type=\"file\" onchange=\"loadf('%d_%d')\" style=\"display: none;\"><br>&nbsp;</td>", 
+	kd->ns_idx, kd->key_idx, kd->ns_idx, kd->key_idx, kd->ns_idx, kd->key_idx, kd->ns_idx, kd->key_idx, kd->ns_idx, kd->key_idx);
+				httpd_resp_send_chunk(req, buf, strlen(buf));
+				}
+			}				
+		}
 	}

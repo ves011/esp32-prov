@@ -34,18 +34,46 @@
 httpd_handle_t w_server;
 static const char *TAG = "file_server";
 
+static esp_err_t simple_get_handler(const uint8_t *start, const uint8_t *end, httpd_req_t *req);
 
-/* Handler to respond with an icon file embedded in flash.
- * Browsers expect to GET website icon at URI /favicon.ico.
- * This can be overridden by uploading file with same name */
-static esp_err_t favicon_get_handler(httpd_req_t *req)
+extern const uint8_t _binary_main_html_start[] 		asm("_binary_main_html_start");
+extern const uint8_t _binary_main_html_end[]		asm("_binary_main_html_end");
+
+extern const uint8_t _binary_nvs_page_start[]		asm("_binary_nvseditor_html_start");
+extern const uint8_t _binary_nvs_page_end[]			asm("_binary_nvseditor_html_end");
+
+extern const uint8_t _binary_main_js_start[] 		asm("_binary_main_js_start");
+extern const uint8_t _binary_main_js_end[]			asm("_binary_main_js_end");
+
+extern const uint8_t _binary_nvs_js_start[] 		asm("_binary_nvs_js_start");
+extern const uint8_t _binary_nvs_js_end[]			asm("_binary_nvs_js_end");
+
+extern const uint8_t _binary_proto_js_start[] 		asm("_binary_appprotolegacy_js_start");
+extern const uint8_t _binary_proto_js_end[]			asm("_binary_appprotolegacy_js_end");
+
+extern const uint8_t _binary_favicon_ico_start[] 	asm("_binary_favicon_ico_start");
+extern const uint8_t _binary_favicon_ico_end[]	 	asm("_binary_favicon_ico_end");
+
+static const asset_t assets[] = 
 	{
-    extern const unsigned char favicon_ico_start[] asm("_binary_favicon_ico_start");
-    extern const unsigned char favicon_ico_end[]   asm("_binary_favicon_ico_end");
-    const size_t favicon_ico_size = (favicon_ico_end - favicon_ico_start);
-    httpd_resp_set_type(req, "image/x-icon");
-    httpd_resp_send(req, (const char *)favicon_ico_start, favicon_ico_size);
-    ESP_LOGI(TAG, "favicon_get_handler()");
+    {"/part",					_binary_main_html_start, 	_binary_main_html_end,		"text/html", 				root_get_handler},
+    {"/js/main.js",				_binary_main_js_start, 		_binary_main_js_end,   		"application/javascript", 	simple_get_handler},
+    {"/js/appprotolegacy.js",	_binary_proto_js_start, 	_binary_proto_js_end,  		"application/javascript", 	simple_get_handler},
+    {"/js/nvs.js",				_binary_nvs_js_start, 		_binary_nvs_js_end,  		"application/javascript", 	simple_get_handler},
+    { "/favicon.ico",			_binary_favicon_ico_start, 	_binary_favicon_ico_end,	"image/x-icon", 			simple_get_handler},
+    { "/upload/",				NULL,						NULL,						"text/html", 				flashing_post_handler},
+    { "/download/",				NULL,						NULL,						"text/html", 				dump_get_handler},
+    { "/a",						NULL,						NULL,						"text/html", 				root_update_handler},
+    { "/nvs",					_binary_nvs_page_start,		_binary_nvs_page_end,		"text/html", 				nvs_get_handler},
+	};
+
+
+esp_err_t generic_handler(httpd_req_t *req);
+
+static esp_err_t simple_get_handler(const uint8_t *start, const uint8_t *end, httpd_req_t *req)
+	{
+    httpd_resp_send(req, (const char *)start, end - start);
+    ESP_LOGI(TAG, "simple_get_handler()");
     return ESP_OK;
 	}
 
@@ -93,40 +121,7 @@ esp_err_t start_file_server(const char *base_path)
     	}
     create_ws_client_handler();
 	w_server = server;
-	httpd_uri_t root = 
-		{
-	    .uri       = "/",
-	    .method    = HTTP_GET,
-	    .handler   = root_get_handler,
-	    .user_ctx = &server_data,
-		};
-	httpd_register_uri_handler(server, &root);
-	/*
-	static const httpd_uri_t main = 
-		{
-	    .uri       = "/main",
-	    .method    = HTTP_POST,
-	    .handler   = main_post_handler
-		};
-	httpd_register_uri_handler(server, &main);
-	*/
-	httpd_uri_t roota = 
-		{
-	    .uri       = "/a",
-	    .method    = HTTP_POST,
-	    .handler   = root_update_handler,
-	    .user_ctx = &server_data,
-		};
-	httpd_register_uri_handler(server, &roota);
-/*	
-	static const httpd_uri_t setboot = 
-		{
-	    .uri       = "/sb",
-	    .method    = HTTP_POST,
-	    .handler   = set_boot_handler
-		};
-	httpd_register_uri_handler(server, &setboot);
-*/
+
 	static const httpd_uri_t ws = {
         .uri        = "/ws",
         .method     = HTTP_GET,
@@ -137,33 +132,83 @@ esp_err_t start_file_server(const char *base_path)
 		};
 	httpd_register_uri_handler(server, &ws);
 	
+	httpd_uri_t uri = 
+		{
+    	.uri = "/*",
+    	.method = HTTP_ANY,
+    	.handler = generic_handler,
+    	.user_ctx = &server_data,
+		};
+	httpd_register_uri_handler(server, &uri);
+/*
+	httpd_uri_t root = 
+		{
+	    .uri       = "/",
+	    .method    = HTTP_GET,
+	    .handler   = root_get_handler,
+	    .user_ctx = &server_data,
+		};
+	httpd_register_uri_handler(server, &root);
+*/
+	/*
+	static const httpd_uri_t main = 
+		{
+	    .uri       = "/main",
+	    .method    = HTTP_POST,
+	    .handler   = main_post_handler
+		};
+	httpd_register_uri_handler(server, &main);
+	*/
+/*	
+	httpd_uri_t roota = 
+		{
+	    .uri       = "/a",
+	    .method    = HTTP_POST,
+	    .handler   = root_update_handler,
+	    .user_ctx = &server_data,
+		};
+//	httpd_register_uri_handler(server, &roota);
+*/
+/*	
+	static const httpd_uri_t setboot = 
+		{
+	    .uri       = "/sb",
+	    .method    = HTTP_POST,
+	    .handler   = set_boot_handler
+		};
+	httpd_register_uri_handler(server, &setboot);
+*/
+
     /* URI handler for getting uploaded files */
+/*    
     httpd_uri_t file_download = {
-        .uri       = "/download/*",  // Match all URIs of type /path/to/file
+        .uri       = "/download/",  // Match all URIs of type /path/to/file
         .method    = HTTP_GET,
         .handler   = dump_get_handler,
         .user_ctx  = &server_data    // Pass server data as context
     };
-    httpd_register_uri_handler(server, &file_download);
-
+//    httpd_register_uri_handler(server, &file_download);
+*/
     /* URI handler for uploading files to server */
+/*    
     httpd_uri_t file_upload = {
         .uri       = PART_UPLOAD"*",   // Match all URIs of type /upload/path/to/file
         .method    = HTTP_POST,
         .handler   = flashing_post_handler,
         .user_ctx  = &server_data    // Pass server data as context
     };
-    httpd_register_uri_handler(server, &file_upload);
-    
+//    httpd_register_uri_handler(server, &file_upload);
+*/  
     /* URI handler for nvs editor */
+/*    
     httpd_uri_t nvs_editor = {
         .uri       = "/nvs_editor.html",   
         .method    = HTTP_GET,
         .handler   = nvs_get_handler,
         .user_ctx  = &server_data    // Pass server data as context
     };
-    httpd_register_uri_handler(server, &nvs_editor);
-    
+//    httpd_register_uri_handler(server, &nvs_editor);
+*/
     /* URI handler for getting nvs blob key */
     httpd_uri_t nvsk_download = {
         .uri       = NVSK_DOWNLOAD"*",  // Match all URIs of type /path/to/file
@@ -171,7 +216,7 @@ esp_err_t start_file_server(const char *base_path)
         .handler   = nvskey_get_handler,
         .user_ctx  = &server_data    // Pass server data as context
     };
-    httpd_register_uri_handler(server, &nvsk_download);
+//    httpd_register_uri_handler(server, &nvsk_download);
     
     /* URI handler for spiffs editor */
     httpd_uri_t spiffs_editor = {
@@ -180,16 +225,18 @@ esp_err_t start_file_server(const char *base_path)
         .handler   = spiffs_get_handler,
         .user_ctx  = &server_data    // Pass server data as context
     };
-    httpd_register_uri_handler(server, &spiffs_editor);
+//    httpd_register_uri_handler(server, &spiffs_editor);
     
     /* URI handler for favicon*/
+/*    
 	httpd_uri_t favicon = {
 	    .uri     = "/favicon.ico",
 	    .method  = HTTP_ANY,
 	    .handler = favicon_get_handler,
 	    .user_ctx  = &server_data    // Pass server data as context
 	};
-	httpd_register_uri_handler(server, &favicon);
+//	httpd_register_uri_handler(server, &favicon);
+*/
 #if 0	
 	/* URI handler for uloading NVS BLOBs*/
 	httpd_uri_t nvskup = {
@@ -201,4 +248,24 @@ esp_err_t start_file_server(const char *base_path)
 	httpd_register_uri_handler(server, &nvskup);
 #endif
     return ESP_OK;
+	}
+
+esp_err_t generic_handler(httpd_req_t *req)
+	{
+	char turi[CONFIG_HTTPD_MAX_URI_LEN + 1];
+	ESP_LOGI(TAG, "URI: %s", req->uri);
+	strcpy(turi, req->uri);
+	if(strcmp(turi, "/") == 0)		//if uri = / go to /part
+		strcpy(turi, "/part");
+    for (int i = 0; i < sizeof(assets)/sizeof(assets[0]); i++) 
+    	{
+		if(strstr(turi, assets[i].uri) == turi)
+        	{
+			httpd_resp_set_type(req, assets[i].type);
+			return 
+				assets[i].page_handler(assets[i].start, assets[i].end, req);
+	        }
+    	}
+    httpd_resp_send_404(req);
+    return ESP_FAIL;
 	}

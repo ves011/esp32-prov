@@ -10,6 +10,7 @@
 #include <esp_log.h>
 #include <esp_system.h>
 #include <nvs_flash.h>
+#include <string.h>
 #include <sys/param.h>
 #include <esp_log.h>
 #include <spi_flash_mmap.h>
@@ -35,7 +36,9 @@ int nns, nkeys;
 char nvs_selpart[16];
 static TaskHandle_t update_task_handle = NULL;
 QueueHandle_t receive_q = NULL;
-rcv_keyval_t *rcv_keyval;
+
+// request for update structure
+rcv_keyval_t rcv_keyval[MAX_CONCURRENT_UPDATES] = {0};
 int nrcv = 0;
 
 static struct
@@ -146,9 +149,10 @@ int get_nvs_entries(char *pName)
 			}
 		if(i == nns)
 			{
-			namespace = realloc(namespace, sizeof(namespace_t) * (nns + 1));
-			if(namespace)
+			namespace_t *n = realloc(namespace, sizeof(namespace_t) * (nns + 1));
+			if(n)
 				{
+				namespace = n;
 				strcpy(namespace[nns].name, info.namespace_name);
 				namespace[nns].nentries = 0;
 				nns++;
@@ -159,10 +163,10 @@ int get_nvs_entries(char *pName)
 				return ESP_FAIL;
 				}
 			}
-		
-		nvskey = realloc(nvskey, sizeof(nvskey_t) * (nkeys + 1));
-		if(nvskey)
+		nvskey_t *k = realloc(nvskey, sizeof(nvskey_t) * (nkeys + 1));
+		if(k)
 			{
+			nvskey = k;
 			strcpy(nvskey[nkeys].name, info.key);
 			nvskey[nkeys].ns_idx = i;
 			nvskey[nkeys].type = info.type;
@@ -271,197 +275,139 @@ int create_nvs_key(char *pName, char *ns, char *key, int type, int len, char *ph
 				else
 					ESP_LOGI(TAG, "cannot allocate memory for key val storage");
 				}
-/*
-			if(ret == ESP_OK)
-				{
-				nvs_commit(out_handle);
-				nvs_close(out_handle);
-				ret = nvs_open_from_partition(nvs_selpart, ns, NVS_READONLY, &out_handle);
-				if(ret == ESP_OK)
-					{
-					char b[2];
-					uint64_t val = 0;
-					size_t sz;
-					switch(type)
-						{
-						case NVS_TYPE_U8:
-							ret = nvs_get_u8(out_handle, key, (uint8_t *)&val);
-							break;
-						case NVS_TYPE_I8:
-							ret = nvs_get_i8(out_handle, key, (int8_t *)&val);
-							break;
-						case NVS_TYPE_U16:
-							ret = nvs_get_u16(out_handle, key, (uint16_t *)&val);
-							break;
-						case NVS_TYPE_I16:
-							ret = nvs_get_i16(out_handle, key, (int16_t *)&val);
-							break;
-						case NVS_TYPE_U32:
-							ret = nvs_get_u32(out_handle, key, (uint32_t *)&val);
-							break;
-						case NVS_TYPE_I32:
-							ret = nvs_get_i32(out_handle, key, (int32_t *)&val);
-							break;
-						case NVS_TYPE_U64:
-							ret = nvs_get_u64(out_handle, key, (uint64_t *)&val);
-							break;
-						case NVS_TYPE_I64:
-							ret = nvs_get_i64(out_handle, key, (int64_t *)&val);
-							break;
-						case NVS_TYPE_STR:
-							sz = 2;
-							ret = nvs_get_str(out_handle, key, b, &sz);
-							break;
-						case NVS_TYPE_BLOB:
-							sz = 1;
-							ret = nvs_get_blob(out_handle, key, b, &sz);
-							break;
-						}
-					ESP_LOGI(TAG, "key add check: %s / out value %x", esp_err_to_name(ret), val);
-					nvs_close(out_handle);
-					}
-				}
-			}
-			
-		}
-*/
 			}
 		}
 	return ret;
 	}
-/*
-int recv_update(int idn, int idk, int len, int nrc)
+int update_key_chunk(int idxns, int idxkey, int offset, int len, void *chunk, errrep_t *errrep)
 	{
-	void *pr;
-	int i;
-	int ret = ESP_FAIL;
-	char buf[64];
-	void *b;
-	if(nvskey[idk].ns_idx == idn)
+	int ret = ESP_FAIL, i;
+	nvs_handle_t handle;
+	for(i = 0; i < MAX_CONCURRENT_UPDATES; i++)
 		{
-		for(i = 0; i < nrcv; i++)
+		if(rcv_keyval[i].idxkey == idxkey && 
+			rcv_keyval[i].idxns == idxns && 
+				(rcv_keyval[i].state == UPDATE_INPROGRESS || rcv_keyval[i].state == UPDATE_READY))
+			break;
+		}
+	if(i < MAX_CONCURRENT_UPDATES && 
+		(nvskey[idxkey].type == NVS_TYPE_STR || nvskey[idxkey].type == NVS_TYPE_BLOB) &&
+			offset > 0 && offset + len <= rcv_keyval[i].len)
+		{
+		memcpy((uint8_t *)rcv_keyval[i].recvb + offset, chunk, len);
+		rcv_keyval[i].rcvlen = MAX(rcv_keyval[i].rcvlen, offset + len);
+		if(rcv_keyval[i].rcvlen == rcv_keyval[i].len)
 			{
-			if(rcv_keyval[i].idxkey == idk && rcv_keyval[i].idxns == idn)
-				break;
-			}
-		if(i == nrcv)
-			{
-			if(nvskey[idk].ns_idx == idn)
+			ret = nvs_open_from_partition(nvs_selpart, namespace[idxns].name, NVS_READWRITE, &handle);
+			ESP_LOGI(TAG, "name space open: %s / out handle %d", esp_err_to_name(ret), handle);
+			if(ret == ESP_OK)
 				{
-				if(nvskey[idk].type < NVS_TYPE_STR)
-					b = calloc(1, 8);
-				else
-					b = calloc(1, len);
-				
-				if(b)
+				ret = nvs_set_val(nvskey[idxkey].type, handle, nvskey[idxkey].name, rcv_keyval[i].len, rcv_keyval[i].recvb);
+				if(ret == ESP_OK)
 					{
-					pr = realloc(rcv_keyval, sizeof(rcv_keyval_t) + (nrcv + 1));
-					if(pr)
-						{
-						rcv_keyval = pr;
-						rcv_keyval[i].idxkey = idk;
-						rcv_keyval[i].idxns = idn;
-						rcv_keyval[i].state = UPDATE_READY;
-						rcv_keyval[i].len = len;
-						rcv_keyval[i].rcvlen = 0;
-						rcv_keyval[i].nr_cunks = nrc;
-						rcv_keyval[i].rcv_chunks = 0;
-						rcv_keyval[i].recvb = b;
-						rcv_keyval[i].type = nvskey[idk].type;
-						sprintf(buf, "%s\1[%d][%d]", SEND_VAL, idn, idk);
-						send_strmsg(buf);
-						ret = ESP_OK;
-						nrcv++;
-						}
-					else
-						{
-						ESP_LOGI(TAG, "too many concurrent updates -  cannot allocate rcv_keyval struct");
-						free(b);
-						}
+					nvs_commit(handle);
+					ret = 1;
 					}
 				else
-					ESP_LOGI(TAG, "too many concurrent updates - cannot allocate  receive buffer");
-				}
-			}
-		else
-			{
-			ESP_LOGI(TAG, "rcv_keyval already allocated state: %d", rcv_keyval[i].state);
-			if(rcv_keyval[i].state == UPDATE_INPROGRESS)
-				{
-				// error case needs handling
-				ESP_LOGI(TAG, "ERROR: rcv_keyval update in progress: %d", rcv_keyval[i].state);
-				ret = ESP_FAIL;
+					{
+					snprintf(errrep->errmsg, sizeof(errrep->errmsg), "Error updating key %s (%d)", esp_err_to_name(ret), ret);
+					ESP_LOGI(TAG, "%s", errrep->errmsg);
+					}
+				nvs_close(handle);
 				}
 			else
 				{
-				rcv_keyval[i].state = UPDATE_READY;
-				rcv_keyval[i].len = len;
-				rcv_keyval[i].rcvlen = 0;
-				rcv_keyval[i].nr_cunks = nrc;
-				rcv_keyval[i].rcv_chunks = 0;
-				if(rcv_keyval[i].recvb)
-					free(rcv_keyval[i].recvb);
-				if(nvskey[idk].type < NVS_TYPE_STR)
-					b = calloc(1, 8);
-				else
-					b = calloc(1, len);
-				if(b)
-					{
-					rcv_keyval[i].recvb = b;
-					ret = ESP_OK;
-					}
-				else
-					ESP_LOGI(TAG, "too many concurrent updates - cannot allocate  receive buffer");
+				snprintf(errrep->errmsg, sizeof(errrep->errmsg), "Error updating key %s (%d)", esp_err_to_name(ret), ret);
+				ESP_LOGI(TAG, "%s", errrep->errmsg);
 				}
-			if(rcv_keyval[i].state == UPDATE_READY)
+			if(rcv_keyval[i].recvb)
 				{
-				sprintf(buf, "%s\1[%d][%d]", SEND_VAL, idn, idk);
-				send_strmsg(buf);
-				ret = ESP_OK;
-				}	
+				free(rcv_keyval[i].recvb);
+				rcv_keyval[i].recvb = NULL;
+				}
+			memset(&rcv_keyval[i], 0, sizeof(rcv_keyval_t));
+			rcv_keyval[i].state = UPDATE_COMPLETE;
 			}
+		else if(rcv_keyval[i].rcvlen > rcv_keyval[i].len)
+			{
+			rcv_keyval[i].state = UPDATE_COMPLETE;
+			snprintf(errrep->errmsg, sizeof(errrep->errmsg), "%s wrong length received. Expected %d received %d\nUpdated aborted", 
+				nvskey[rcv_keyval[i].idxkey].name,  rcv_keyval[i].len, rcv_keyval[i].rcvlen);
+			ESP_LOGI(TAG, "%s", errrep->errmsg);
+			if(rcv_keyval[i].recvb)
+				{
+				free(rcv_keyval[i].recvb);
+				rcv_keyval[i].recvb = NULL;
+				}
+			memset(&rcv_keyval[i], 0, sizeof(rcv_keyval_t));
+			rcv_keyval[i].state = UPDATE_COMPLETE;
+			}
+		else
+			{
+			ESP_LOGI(TAG, "%s progress. Expected %d received %d", 
+				nvskey[rcv_keyval[i].idxkey].name,  rcv_keyval[i].len, rcv_keyval[i].rcvlen);
+			rcv_keyval[i].state = UPDATE_INPROGRESS;
+			ret = ESP_OK;
+			}	
 		}
 	return ret;
 	}
-	
-int update_keyval(int idxn, int idxk, void *pstr)
+int init_update_key(int idxns, int idxkey, int ktype, size_t upd_len, errrep_t *errrep)
 	{
-	int i, k, j;
-	int ret = ESP_FAIL;
-	void *pr;
-	for(i = 0; i < nrcv; i++)
+	int ret = ESP_FAIL, i;
+	for(i = 0; i < MAX_CONCURRENT_UPDATES; i++) // check if any update for this key is inprogress
 		{
-		if(rcv_keyval[i].idxns == idxn && rcv_keyval[i].idxkey == idxk)
+		if(rcv_keyval[i].idxkey == idxkey && 
+			rcv_keyval[i].idxns == idxns && 
+				rcv_keyval[i].type == ktype  && rcv_keyval[i].state == UPDATE_INPROGRESS)
 			{
-			if(rcv_keyval[i].state < UPDATE_COMPLETE)
-				{
-				if(rcv_keyval[i].type < NVS_TYPE_STR)
-					{
-					ret = set_nvs_value(idxk, pstr);
-					rcv_keyval[i].state = UPDATE_COMPLETE;
-					ESP_LOGI(TAG, "update_keyval: %d", ret);
-					//free rcv_keyval[i]
-					if(rcv_keyval[i].recvb)
-						free(rcv_keyval[i].recvb);
-					for(j = i + 1; j < nrcv; j++)
-						{
-						k = j - 1;
-						memcpy(&rcv_keyval[k], &rcv_keyval[j], sizeof(rcv_keyval_t));
-						}
-					pr = realloc(rcv_keyval, sizeof(rcv_keyval_t) * (nrcv - 1));
-					if(pr)
-						{
-						rcv_keyval = pr;
-						nrcv --;
-						}
-					break;
-					}
-				}
+			rcv_keyval[i].state = UPDATE_COMPLETE;
+			break;
 			}
 		}
-	return ret;	
+	if(i == MAX_CONCURRENT_UPDATES) // look for first available rcv_keyval
+		{
+		for(i = 0; i < MAX_CONCURRENT_UPDATES; i++)
+			{
+			if(rcv_keyval[i].state == UPDATE_COMPLETE || rcv_keyval[i].state == UPDATE_NOTUSED)
+				break;
+			}
+		}
+	
+	if(i < MAX_CONCURRENT_UPDATES)
+		{
+		if(rcv_keyval[i].recvb)
+			free(rcv_keyval[i].recvb);
+		void *b = calloc(1, upd_len);
+		if(b)
+			{
+			rcv_keyval[i].idxkey = idxkey;
+			rcv_keyval[i].idxns = idxns;
+			rcv_keyval[i].state = UPDATE_READY;
+			rcv_keyval[i].len = upd_len;
+			rcv_keyval[i].recvb = b;
+			rcv_keyval[i].rcvlen = 0;
+			rcv_keyval[i].type = ktype;
+			ret = ESP_OK;
+			}
+		else
+			{
+			snprintf(errrep->errmsg, sizeof(errrep->errmsg), "Cannot allocate memory for new key size: %d", upd_len);
+			ESP_LOGI(TAG, "%s", errrep->errmsg);
+			errrep->err = -3;
+			ret = -3;
+			}
+		}
+	else	// already MAX_CONCURRENT_UPDATES ongoing
+		{
+		snprintf(errrep->errmsg, sizeof(errrep->errmsg),"MAX_CONCURRENT_UPDATES already ongoing"); 
+		ESP_LOGI(TAG, "%s", errrep->errmsg);
+		errrep->err = -4;
+		ret = -4;
+		}
+	ESP_LOGI(TAG, "init_update_key(): %d", ret);
+	return ret;
 	}
-*/	
 void nvs_update_task(void *pvParameters)
 	{
 	rcv_keyval_t rval;
@@ -476,7 +422,7 @@ void nvs_update_task(void *pvParameters)
 		ESP_LOGE(TAG, "Cannot create receive_q");
 		my_esp_restart();
 		}
-	rcv_keyval = NULL;
+	//rcv_keyval = NULL;
 	while(1)
 		{
 		if(xQueueReceive(receive_q, &rval, portMAX_DELAY))
@@ -486,13 +432,15 @@ void nvs_update_task(void *pvParameters)
 				if(rcv_keyval[i].idxkey == rval.idxkey && rcv_keyval[i].idxns == rval.idxns)
 					break;
 				}
+			ESP_LOGI(TAG, "rval: %d / %d/ nrcv: %d", rval.idxns, rval.idxkey, nrcv);
+/*			
 			if(rval.recvb == NULL) //update request. len = full length of the key
 				{
-				if(i == nrcv)
+				if(i == nrcv) //new request need to allocate new rcv_keyval
 					{
-					if(nvskey[rval.idxkey].ns_idx == rval.idxns)
+					if(nvskey[rval.idxkey].ns_idx == rval.idxns) //sanity check
 						{
-						if(nvskey[rval.idxkey].type < NVS_TYPE_STR)
+						if(nvskey[rval.idxkey].type < NVS_TYPE_STR) //numeric value always allocate 8 bytes
 							b = calloc(1, 8);
 						else
 							b = calloc(1, rval.len);
@@ -518,12 +466,18 @@ void nvs_update_task(void *pvParameters)
 							else
 								{
 								ESP_LOGI(TAG, "too many concurrent updates -  cannot allocate rcv_keyval struct");
+								//send response to frontend
 								free(b);
 								}
 							}
 						else
+							{
 							ESP_LOGI(TAG, "too many concurrent updates - cannot allocate  receive buffer");
+							//send response to frontend
+							}
 						}
+					else
+						ESP_LOGE(TAG, "error mismatch for namespace index - expected %d / received %d", nvskey[rval.idxkey].ns_idx, rval.idxns);
 					}
 				else
 					{
@@ -559,8 +513,8 @@ void nvs_update_task(void *pvParameters)
 					}
 				if(rcv_keyval[i].state == UPDATE_READY)
 					{
-					sprintf(buf, "%s\1[%d][%d]", SEND_VAL, rval.idxns, rval.idxkey);
-					send_strmsg(buf);
+					//sprintf(buf, "%s\1%d_%d", SEND_VAL, rval.idxns, rval.idxkey);
+					//send_strmsg(buf);
 					}	
 				}
 			else  //chunk with data. len = chunk length
@@ -619,9 +573,9 @@ void nvs_update_task(void *pvParameters)
 							sprintf(berr, "size mismatch: expected %d, received %d", rcv_keyval[i].len, rcv_keyval[i].rcvlen);
 						else
 							strcpy(berr, esp_err_to_name(ret));
-						sprintf(buf, UPDATE_KEY"\1[%d][%d]\1%s\1%d\1%s\1", 
-								rcv_keyval[i].idxns, rcv_keyval[i].idxkey, nvskey[rcv_keyval[i].idxkey].name, ret, berr);
-						send_strmsg(buf);	
+						//sprintf(buf, UPDATE_KEY"\1%d_%d\1%s\1%d\1%s\1", 
+						//		rcv_keyval[i].idxns, rcv_keyval[i].idxkey, nvskey[rcv_keyval[i].idxkey].name, ret, berr);
+						//send_strmsg(buf);	
 						if(rcv_keyval[i].recvb)
 							free(rcv_keyval[i].recvb);
 						for(int j = i + 1; j < nrcv; j++)
@@ -641,14 +595,31 @@ void nvs_update_task(void *pvParameters)
 				else
 					ESP_LOGI(TAG, "NO rcv_keyval found or state = UPDATE_INPROGRESS (i: %d / %d)", i, nrcv);
 				}
+*/				
+			}			
+		}
+	}
+	
+int nvs_update_key(int type, int nsidx, int keyidx, int len, void *val)
+	{
+	int ret = ESP_FAIL;
+	nvs_handle_t handle;
+	if(keyidx < nkeys && nvskey[keyidx].ns_idx == nsidx && type < NVS_TYPE_STR)
+		{
+		ret = nvs_open_from_partition(nvs_selpart, namespace[nsidx].name, NVS_READWRITE, &handle);
+		if(ret == ESP_OK)
+			{
+			ret = nvs_set_val(type, handle, nvskey[keyidx].name, len, val);
 			}
 		}
+	return ret;
 	}
 
 int nvs_set_val(int type, nvs_handle_t handle, char *name, int len, void *val)
 	{
 	int ret = ESP_FAIL;
 	uint8_t swapb[8];
+	/*
 	if(type < NVS_TYPE_STR)
 		{
 		for(int i = 0; i < 8; i++)
@@ -657,6 +628,8 @@ int nvs_set_val(int type, nvs_handle_t handle, char *name, int len, void *val)
 	ESP_LOGI(TAG, "%s update %x %x %x %x %x %x %x %x ", name, 
 				*(uint8_t *)val, *(uint8_t *)(val + 1), *(uint8_t *)(val + 2), *(uint8_t *)(val + 3), *(uint8_t *)(val + 4), *(uint8_t *)(val + 5), *(uint8_t *)(val + 6), *(uint8_t *)(val + 7));
 	ESP_LOGI(TAG, "uint64_t %08llx", *(uint64_t *)swapb);
+	*/
+	memcpy(swapb, val, sizeof(swapb));
 	switch(type)
 		{
 		case NVS_TYPE_U8:
@@ -696,21 +669,44 @@ int nvs_set_val(int type, nvs_handle_t handle, char *name, int len, void *val)
 	return ret;
 	}
 
-int erase_nvs_key(char *ns, char *key)
+int erase_nvs_key(int nsID, int keyID)
 	{
-	int ret = ESP_FAIL;
-	nvs_handle_t handle;;
-	ret = nvs_open_from_partition(nvs_selpart, ns, NVS_READWRITE, &handle);
-	if(ret == ESP_OK)
+	int ret = ESP_FAIL, i, j;
+	nvs_handle_t handle;
+	for(i = 0; i < nns; i++)
 		{
-		if(key == NULL) // delete all keys in the namespace
-			ret =  nvs_erase_all(handle);
-		else
-			ret = nvs_erase_key(handle, key);
-		if(ret == ESP_OK)
-			nvs_commit(handle);
-		nvs_close(handle);
+		if(i == nsID)
+			{
+			ret = nvs_open_from_partition(nvs_selpart, namespace[i].name, NVS_READWRITE, &handle);
+			if(ret == ESP_OK)
+				{
+				ret = ESP_FAIL;
+				if(keyID == -1)	//delete entire namespace
+					ret =  nvs_erase_all(handle);
+				else // delete single key
+					{
+					for(j = 0; j < nkeys; j++)
+						{
+						if(nvskey[j].ns_idx == i && j == keyID)
+							{
+							ret = nvs_erase_key(handle, nvskey[j].name);
+							break;
+							}
+						}
+					if(j == nkeys)
+						ESP_LOGI(TAG, "key not found: %d / %d", j, i);
+					}
+				if(ret == ESP_OK)
+					nvs_commit(handle);
+				nvs_close(handle);
+				}
+			else
+				ESP_LOGI(TAG, "Error open NVS namespace: %s / %d", namespace[i].name, i);
+			break;
+			}
 		}
+	if(i == nns)
+		ESP_LOGI(TAG, "namespace not found: %d", i);
 	return ret;
 	} 
 	
@@ -751,8 +747,8 @@ esp_err_t nvskey_get_handler(httpd_req_t *req)
 		strcpy(berr, esp_err_to_name(ret));
 	
 	ESP_LOGI(TAG, "dump key: %s", berr);
-	sprintf(bmsg, DUMP_KEY"\1[%d][%d]\1%s\1%d\1%s\1", idxn, idxk, nvskey[idxk].name, ret, berr);
-	send_strmsg(bmsg);
+	//sprintf(bmsg, DUMP_KEY"\1[%d][%d]\1%s\1%d\1%s\1", idxn, idxk, nvskey[idxk].name, ret, berr);
+	//send_strmsg(bmsg);
 	return ret;	
 	}
 #if 0

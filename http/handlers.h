@@ -44,12 +44,14 @@ extern ptable_t pTable[MAX_UPDPART];
 extern int wsfd;
 extern struct file_server_data server_data;
 
-esp_err_t root_get_handler(httpd_req_t *req);
+esp_err_t root_get_handler(const uint8_t *start, const uint8_t *end, httpd_req_t *req);
+//esp_err_t root_get_handler(httpd_req_t *req);
 esp_err_t main_post_handler(httpd_req_t *req);
-esp_err_t root_update_handler(httpd_req_t *req);
+//esp_err_t root_update_handler(httpd_req_t *req);
+esp_err_t root_update_handler(const uint8_t *start, const uint8_t *end, httpd_req_t *req);
 esp_err_t set_boot_handler(httpd_req_t *req);
-esp_err_t flashing_post_handler(httpd_req_t *req);
-esp_err_t dump_get_handler(httpd_req_t *req);
+esp_err_t flashing_post_handler(const uint8_t *start, const uint8_t *end, httpd_req_t *req);
+esp_err_t dump_get_handler(const uint8_t *start, const uint8_t *end, httpd_req_t *req);
 esp_err_t ws_handler(httpd_req_t *req);
 int set_bp(char *pName);
 

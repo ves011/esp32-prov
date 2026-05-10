@@ -13,6 +13,8 @@
 
 typedef struct
 	{
+	int ns_idx;
+	int key_idx;
 	nvs_handle_t nvsh;
 	int type;
 	char name[NVS_KEY_NAME_MAX_SIZE];
@@ -33,7 +35,7 @@ typedef struct
 	} keydef_t;
 	
 
-esp_err_t nvs_get_handler(httpd_req_t *req);
+esp_err_t nvs_get_handler(const uint8_t *start, const uint8_t *end, httpd_req_t *req);
 int get_nvs_entries(char *pName);
 
 #endif /* MAIN_NVS_EDITOR_H_ */
