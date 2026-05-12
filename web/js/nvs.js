@@ -145,28 +145,71 @@ function commitc()
         ws_send(buffer);
         }
     }
+function keysDecHandler(event)
+    {
+    const e = event.target;
+    const typed = String(event.data);
+    if(e.classList.contains("ued") ||
+        e.classList.contains("ied") ||
+            e.classList.contains("sed"))
+        {
+        var start = e.selectionStart;
+        var upd = false;
+        if(e.className == "sed")
+            {
+            upd = true;
+            document.getElementById("nk_len").value = e.value.length;
+            }
+        else if((event.inputType == "deleteContentBackward" || event.inputType == "deleteContentForward") ||
+            ('0123456789'.indexOf(typed) >= 0))
+            upd = true;
+        else if(e.className == "ied")
+            {
+            if(typed == "-" && start == 0 && target.value.indexOf("-") == -1)
+                upd = true;
+            }
+        if(upd)
+            {
+            e.style.color = "rgb(255, 0, 0)";
+            document.getElementById("commit_ch").disabled = false; 
+            //pushupdate(target.id);     
+            }
+        else {event.stopPropagation(); event.preventDefault();}
+        }
+    }
+function update_len(event)
+    {
+    var v = Number(document.getElementsByName("types")[0].value);
+    if(event.target.id == "phv" &&
+        Number(v) == NVS_TYPE_STR)
+        {
+        document.getElementById("nk_len").value = document.getElementById(event.target.id).value.length;
+        }
+    }
 function pageload()
     {
+    //document.addEventListener("beforeinput", beforeInputHandler);
+    //document.addEventListener("keydown", keyDownHandler);
+    document.addEventListener("beforeinput", keysDecHandler);
+    document.addEventListener("input", update_len);
     var inp = document.getElementsByClassName("hed");
     for (i = 0; i < inp.length; i++)
         {
-        inp[i].addEventListener("beforeinput", handleKeysHex, false);
-        inp[i].addEventListener("keydown", handleDelete, false);
-        }
+        inp[i].blobData = parseHexText(inp[i].value);
+        inp[i].addEventListener("keydown", hexKeyDown);
+        inp[i].addEventListener("paste", hexPaste);
+        inp[i].spellcheck = false;
+        inp[i].wrap = "off";
 
-    inp = document.querySelectorAll(".ued, .ied, .sed");
-    for (i = 0; i < inp.length; i++)
-        {
-        inp[i].addEventListener("beforeinput", handleKeysDec, false);
-        if(inp[i].className == "sed")
-            inp[i].addEventListener("input", updatelen, false);
+        //inp[i].addEventListener("beforeinput", handleKeysHex, false);
+        //inp[i].addEventListener("keydown", handleDelete, false);
         }
-
     inp = document.querySelectorAll(".sel2del, .sel2delns");
     for (i = 0; i < inp.length; i++)
         {
         inp[i].addEventListener("click", setSel);
         }
+
 
     const wsUri = window.location.origin + "/ws";
 	websocket = new WebSocket(wsUri);
@@ -471,6 +514,8 @@ function seltypes()
     {
     var v = Number(document.getElementsByName("types")[0].value);
     var l = document.getElementById("nk_len");
+    var ta = document.getElementById("phv");
+    ta.value = "";
     switch(Number(v))
         {
         case 1: case 17:
@@ -483,6 +528,22 @@ function seltypes()
             l.value = 8; l.readOnly = true; break;
         default:
             l.value = 0; l.readOnly = false; break;
+        }
+    ta.classList.remove("ied", "ued", "sed", "hed");
+    switch(Number(v))
+        {
+        case 1: case 2: case 4: case 8:
+            ta.classList.add("ued");
+            break;
+        case 17: case 18: case 20: case 24:
+            ta.classList.add("ied");
+            break;
+        case 33:
+            ta.classList.add("sed");
+            break;
+        case 66:
+            ta.classList.add("hed");
+            break;
         }
     }
 function createnk()

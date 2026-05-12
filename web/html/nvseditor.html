@@ -28,6 +28,7 @@ tr {border-bottom: 1px solid black;}
 </style>
 <script src="../js/appprotolegacy.js"></script>
 <script src="../js/nvs.js"></script>
+<script src="../js/hexed.js"></script>
 </head>
 <body onLoad="pageload()">		
 <h1>NVS editor</h1>
@@ -147,7 +148,11 @@ insertkeys
         <td id="t_0_0" name="66">NVS_TYPE_BLOB</td>
         <td id="l_0_0">10</td>
         <td>
-            <textarea class = "hed" id="0_0" rows="1" style="width: 673px; resize: vertical;">48 49 50 51 52 53 54 55  48 49</textarea><br>
+            <textarea class = "hed" id="0_0" rows="1" style="width: 673px; resize: vertical;">
+48 49 50 51 52 53 54 55 - 48 49 c0 c1 c2 c3 c4 c6
+d0 d1 d2 51 52 53 54 55 - 48 49 c0 c1 c2 c3 c4 c6
+e1 e2
+</textarea><br>
             <button id="dump" onclick="dump('0_0')">Dump to...</button>&nbsp;&nbsp;&nbsp;
             <button id="upload" type="button" onclick="document.getElementById('f_0_0').click()">Update from...</button>
             <label id="u_0_0"></label>
