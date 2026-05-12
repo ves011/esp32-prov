@@ -18,8 +18,7 @@
 #define MAX_UPDPART			20
 #define MAX_BLOB_DISPLAY	SCRATCH_BUFSIZE
 
-#define NVSK_DOWNLOAD		"/nvskdownload/"
-#define NVSK_UPLOAD			"/nvskupload/"
+#define NVSK_DOWNLOAD		"/keydump/"
 #define PART_DOWNLOAD		"/download/"
 #define PART_UPLOAD			"/upload/"
 

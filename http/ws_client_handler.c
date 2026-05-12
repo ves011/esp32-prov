@@ -158,10 +158,10 @@ static void handle_update_key_val(app_proto_t *msg) //update key with the chunks
 		return;
 		}
 	int ret = update_key_chunk(in, ik, atoi(msg->params[1]), atoi(msg->params[2]), msg->payload, &errrep);
-	if(ret < 0)
-		send_rsp_cmd(msg, ret, errrep.errmsg);
-	else if(ret == 1)
+	if(ret == 1) //it should be safe because error values are > ESP_ERR_NVS_BASE (0x1100)
 		ws_send_status(OP_UPDATEKEY, PAR_PROGRESS, 1, msg->params[0]);
+	else if(ret != ESP_OK)
+		send_rsp_cmd(msg, ret, errrep.errmsg);
 	}
 static void handle_delete_ns(app_proto_t *msg)
 	{

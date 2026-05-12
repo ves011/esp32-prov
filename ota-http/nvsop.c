@@ -15,16 +15,7 @@
 #include <esp_log.h>
 #include <spi_flash_mmap.h>
 #include "esp_err.h"
-#include "argtable3/argtable3.h"
-#include "esp_console.h"
 #include <nvs.h>
-//#include "esp_partition.h"
-#include "freertos/idf_additions.h"
-#include "handlers.h"
-//#include "lwip/opt.h"
-//#include "project_specific.h"
-//#include "common_defines.h"
-#include "utils.h"
 #include "handlers.h"
 #include "ws_client_handler.h"
 #include "nvs_editor.h"
@@ -34,92 +25,13 @@ namespace_t *namespace = NULL;
 nvskey_t *nvskey = NULL;
 int nns, nkeys;
 char nvs_selpart[16];
-static TaskHandle_t update_task_handle = NULL;
-QueueHandle_t receive_q = NULL;
+//QueueHandle_t receive_q = NULL;
 
 // request for update structure
 rcv_keyval_t rcv_keyval[MAX_CONCURRENT_UPDATES] = {0};
 int nrcv = 0;
 
-static struct
-	{
-    struct arg_str *part;
-    struct arg_str *ns;
-    struct arg_str *key;
-    struct arg_str *op;
-    struct arg_int *type;
-    struct arg_end *end;
-	} nvs_args;
-
 static char *TAG = "NVSOP"; 
-
-int do_nvs(int argc, char **argv)
-	{
-	int i, j;
-	char pn[20];
-	if(strcmp(argv[0], "nvs"))
-		return 1;
-	int nerrors = arg_parse(argc, argv, (void **)&nvs_args);
-	if (nerrors != 0)
-		{
-		arg_print_errors(stderr, nvs_args.end, argv[0]);
-		return ESP_FAIL;
-		}
-	if(nvs_args.part->count)
-		strcpy(pn, nvs_args.part->sval[0]);
-	else
-		strcpy(pn, "nvs");
-	ESP_LOGI(TAG, "selected partition: %s", pn);
-	if(strcmp(pn, nvs_selpart))
-		get_nvs_entries(pn);
-	if(strcmp(nvs_args.op->sval[0], "list") == 0)
-		{
-		get_nvs_entries(pn);
-		for(i = 0; i < nns; i++)
-			{
-			for(j = 0; j < nkeys; j++)
-				{
-				if(nvskey[j].ns_idx == i)
-					ESP_LOGI(TAG, "table ns: %s key: %s type: %d", namespace[i].name, nvskey[j].name, nvskey[j].type);
-				}
-			}
-		ESP_LOGI(TAG, "no of ns: %d / no of keys: %d", nns, nkeys);
-		}
-/*		
-	if(strcmp(nvs_args.op->sval[0], "add") == 0)
-		{
-		if(nvs_args.ns->count && nvs_args.key->count && nvs_args.type->count)
-			create_nvs_key(NULL, (char *)nvs_args.ns->sval[0], (char *)nvs_args.key->sval[0], nvs_args.type->ival[0]);
-		else
-			ESP_LOGI(TAG, "namespace or key name or type not provided");
-		}
-*/		
-	return ESP_OK;
-	}
-void register_nvsop(void)
-	{
-	nvs_args.part = arg_str0("p", "part", "<op>", "NVS operation");
-    nvs_args.ns = arg_str0("n", "nspace", "<namespace>", "name space name");
-    nvs_args.key = arg_str0("k", "key", "<key>", "key name");
-    nvs_args.op = arg_str1(NULL, NULL, "<op>", "operation");
-    nvs_args.type = arg_int0("t", "type", "<t>", "data type");
-    nvs_args.end = arg_end(2);
-	const esp_console_cmd_t nvs_cmd =
-    	{
-        .command = "nvs",
-        .help = "nvs cmds",
-        .hint = NULL,
-        .func = &do_nvs,
-        .argtable = &nvs_args
-    	};
-    ESP_ERROR_CHECK( esp_console_cmd_register(&nvs_cmd));
-    if(xTaskCreate(nvs_update_task, "recv_task", 8192, NULL, 5, &update_task_handle) != pdPASS)
-		{
-		ESP_LOGI(TAG, "Unable to create nvs update task");
-		my_esp_restart();
-		}
-	}
-
 int get_nvs_entries(char *pName)
 	{
 	int i;
@@ -292,7 +204,7 @@ int update_key_chunk(int idxns, int idxkey, int offset, int len, void *chunk, er
 		}
 	if(i < MAX_CONCURRENT_UPDATES && 
 		(nvskey[idxkey].type == NVS_TYPE_STR || nvskey[idxkey].type == NVS_TYPE_BLOB) &&
-			offset > 0 && offset + len <= rcv_keyval[i].len)
+			offset >= 0 && offset + len <= rcv_keyval[i].len)
 		{
 		memcpy((uint8_t *)rcv_keyval[i].recvb + offset, chunk, len);
 		rcv_keyval[i].rcvlen = MAX(rcv_keyval[i].rcvlen, offset + len);
@@ -408,198 +320,7 @@ int init_update_key(int idxns, int idxkey, int ktype, size_t upd_len, errrep_t *
 	ESP_LOGI(TAG, "init_update_key(): %d", ret);
 	return ret;
 	}
-void nvs_update_task(void *pvParameters)
-	{
-	rcv_keyval_t rval;
-	int i;
-	void *pr, *b;
-	char buf[80];
-	nvs_handle_t handle;
-	int ret;
-	receive_q = xQueueCreate(10, sizeof(rcv_keyval_t));
-	if(!receive_q)
-		{
-		ESP_LOGE(TAG, "Cannot create receive_q");
-		my_esp_restart();
-		}
-	//rcv_keyval = NULL;
-	while(1)
-		{
-		if(xQueueReceive(receive_q, &rval, portMAX_DELAY))
-			{
-			for(i = 0; i < nrcv; i++)
-				{
-				if(rcv_keyval[i].idxkey == rval.idxkey && rcv_keyval[i].idxns == rval.idxns)
-					break;
-				}
-			ESP_LOGI(TAG, "rval: %d / %d/ nrcv: %d", rval.idxns, rval.idxkey, nrcv);
-/*			
-			if(rval.recvb == NULL) //update request. len = full length of the key
-				{
-				if(i == nrcv) //new request need to allocate new rcv_keyval
-					{
-					if(nvskey[rval.idxkey].ns_idx == rval.idxns) //sanity check
-						{
-						if(nvskey[rval.idxkey].type < NVS_TYPE_STR) //numeric value always allocate 8 bytes
-							b = calloc(1, 8);
-						else
-							b = calloc(1, rval.len);
-						if(b)
-							{
-							pr = realloc(rcv_keyval, sizeof(rcv_keyval_t) * (nrcv + 1));
-							if(pr)
-								{
-								rcv_keyval = pr;
-								rcv_keyval[i].idxkey = rval.idxkey;
-								rcv_keyval[i].idxns = rval.idxns;
-								rcv_keyval[i].state = UPDATE_READY;
-								rcv_keyval[i].len = rval.len;
-								rcv_keyval[i].nr_cunks = rval.nr_cunks;
-								rcv_keyval[i].rcv_chunks = 0;
-								rcv_keyval[i].recvb = b;
-								rcv_keyval[i].type = nvskey[rval.idxkey].type;
-								rcv_keyval[i].rcvlen = 0;
-								//sprintf(buf, "%s\1[%d][%d]", SEND_VAL, rval.idxns, rval.idxkey);
-								//send_strmsg(buf);
-								nrcv++;
-								}
-							else
-								{
-								ESP_LOGI(TAG, "too many concurrent updates -  cannot allocate rcv_keyval struct");
-								//send response to frontend
-								free(b);
-								}
-							}
-						else
-							{
-							ESP_LOGI(TAG, "too many concurrent updates - cannot allocate  receive buffer");
-							//send response to frontend
-							}
-						}
-					else
-						ESP_LOGE(TAG, "error mismatch for namespace index - expected %d / received %d", nvskey[rval.idxkey].ns_idx, rval.idxns);
-					}
-				else
-					{
-					ESP_LOGI(TAG, "rcv_keyval already allocated state: %d", rcv_keyval[i].state);
-					if(rcv_keyval[i].state == UPDATE_INPROGRESS)
-						{
-						// error case needs handling TBD how
-						ESP_LOGI(TAG, "ERROR: rcv_keyval update in progress: %d", rcv_keyval[i].state);
-						//rcv_keyval[i].state = UPDATE_READY;
-						}
-					else //UPDATE_READY or UPDATE_COMPLETE
-						{
-						if(rcv_keyval[i].recvb)
-							free(rcv_keyval[i].recvb);
-						if(rval.type < NVS_TYPE_STR)
-							b = calloc(1, 8);
-						else
-							b = calloc(1, rval.len);
-						if(b)
-							{
-							rcv_keyval[i].state = UPDATE_READY;
-							rcv_keyval[i].len = rval.len;
-							rcv_keyval[i].nr_cunks = rval.nr_cunks;
-							rcv_keyval[i].rcv_chunks = 0;
-							rcv_keyval[i].recvb = b;
-							rcv_keyval[i].rcvlen = 0;
-							}
-						else
-							{
-							ESP_LOGI(TAG, "too many concurrent updates - cannot allocate  receive buffer");
-							}
-						}
-					}
-				if(rcv_keyval[i].state == UPDATE_READY)
-					{
-					//sprintf(buf, "%s\1%d_%d", SEND_VAL, rval.idxns, rval.idxkey);
-					//send_strmsg(buf);
-					}	
-				}
-			else  //chunk with data. len = chunk length
-				{
-				if(i < nrcv && rcv_keyval[i].state < UPDATE_COMPLETE)
-					{
-					if(rcv_keyval[i].type < NVS_TYPE_STR)
-						{
-						rcv_keyval[i].state = UPDATE_COMPLETE;
-						ret = nvs_open_from_partition(nvs_selpart, namespace[rcv_keyval[i].idxns].name, NVS_READWRITE, &handle);
-						ESP_LOGI(TAG, "name space open: %s / out handle %d", esp_err_to_name(ret), handle);
-						if(ret == ESP_OK)
-							{
-							ret = nvs_set_val(nvskey[rcv_keyval[i].idxkey].type, handle, nvskey[rcv_keyval[i].idxkey].name, nvskey[rcv_keyval[i].idxkey].size, rval.recvb);
-							if(ret != ESP_OK)
-								ESP_LOGI(TAG, "Error updating key %s (%d)", esp_err_to_name(ret), ret);
-							}
-						}
-					else if(rcv_keyval[i].type == NVS_TYPE_STR || rcv_keyval[i].type == NVS_TYPE_BLOB)
-						{
-						memcpy(rcv_keyval[i].recvb + rval.rcv_chunks * RCV_CHUNK_SIZE, rval.recvb, rval.len);
-						rcv_keyval[i].rcvlen += rval.len;
-						if(rcv_keyval[i].rcvlen == rcv_keyval[i].len)
-							{
-							rcv_keyval[i].state = UPDATE_COMPLETE;
-							ret = nvs_open_from_partition(nvs_selpart, namespace[rcv_keyval[i].idxns].name, NVS_READWRITE, &handle);
-							ESP_LOGI(TAG, "name space open: %s / out handle %d", esp_err_to_name(ret), handle);
-							if(ret == ESP_OK)
-								{
-								ret = nvs_set_val(nvskey[rcv_keyval[i].idxkey].type, handle, nvskey[rcv_keyval[i].idxkey].name, rcv_keyval[i].len, rcv_keyval[i].recvb);
-								if(ret != ESP_OK)
-									ESP_LOGI(TAG, "Error updating key %s (%d)", esp_err_to_name(ret), ret);
-								}
-							else
-								ESP_LOGI(TAG, "Error updating key %s (%d)", esp_err_to_name(ret), ret);
-							}
-						else if(rcv_keyval[i].rcvlen > rcv_keyval[i].len)
-							{
-							rcv_keyval[i].state = UPDATE_COMPLETE;
-							ret = -0x200000;
-							ESP_LOGI(TAG, "%s wrong length received. Expected %d received %d", 
-								nvskey[rcv_keyval[i].idxkey].name,  rcv_keyval[i].len, rcv_keyval[i].rcvlen);
-							}
-						else
-							{
-							ESP_LOGI(TAG, "%s progress. Expected %d received %d", 
-								nvskey[rcv_keyval[i].idxkey].name,  rcv_keyval[i].len, rcv_keyval[i].rcvlen);
-							rcv_keyval[i].state = UPDATE_INPROGRESS;
-							}	
-						}
-					
-					if(rcv_keyval[i].state == UPDATE_COMPLETE)
-						{
-						char berr[40];
-						if(ret == -0x200000)
-							sprintf(berr, "size mismatch: expected %d, received %d", rcv_keyval[i].len, rcv_keyval[i].rcvlen);
-						else
-							strcpy(berr, esp_err_to_name(ret));
-						//sprintf(buf, UPDATE_KEY"\1%d_%d\1%s\1%d\1%s\1", 
-						//		rcv_keyval[i].idxns, rcv_keyval[i].idxkey, nvskey[rcv_keyval[i].idxkey].name, ret, berr);
-						//send_strmsg(buf);	
-						if(rcv_keyval[i].recvb)
-							free(rcv_keyval[i].recvb);
-						for(int j = i + 1; j < nrcv; j++)
-							memcpy(&rcv_keyval[j - 1], &rcv_keyval[j], sizeof(rcv_keyval_t));
-						pr = realloc(rcv_keyval, sizeof(rcv_keyval_t) * (nrcv - 1));
-						nrcv--;
-						if(nrcv)
-							{
-							if(pr)
-								rcv_keyval = pr;
-							}
-						else
-							rcv_keyval = NULL;
-						}
 
-					}
-				else
-					ESP_LOGI(TAG, "NO rcv_keyval found or state = UPDATE_INPROGRESS (i: %d / %d)", i, nrcv);
-				}
-*/				
-			}			
-		}
-	}
-	
 int nvs_update_key(int type, int nsidx, int keyidx, int len, void *val)
 	{
 	int ret = ESP_FAIL;
@@ -710,12 +431,12 @@ int erase_nvs_key(int nsID, int keyID)
 	return ret;
 	} 
 	
-esp_err_t nvskey_get_handler(httpd_req_t *req)
+int nvskey_get_handler(const uint8_t *start, const uint8_t *end, httpd_req_t *req)
 	{
     char *buf, berr[60], bmsg[120];
     int ret = ESP_FAIL, idxn, idxk;
     nvs_handle_t nvsh;
-	sscanf(req->uri + strlen(NVSK_DOWNLOAD), "[%d][%d]", &idxn, &idxk);
+	sscanf(req->uri + strlen(NVSK_DOWNLOAD), "%d_%d", &idxn, &idxk);
 	ESP_LOGI(TAG, "uri: %s /msg: %s / idxn: %d / idxk: %d", req->uri, bmsg, idxn, idxk);
 	if(idxk < nkeys && nvskey[idxk].type == NVS_TYPE_BLOB)
 		{
@@ -747,113 +468,5 @@ esp_err_t nvskey_get_handler(httpd_req_t *req)
 		strcpy(berr, esp_err_to_name(ret));
 	
 	ESP_LOGI(TAG, "dump key: %s", berr);
-	//sprintf(bmsg, DUMP_KEY"\1[%d][%d]\1%s\1%d\1%s\1", idxn, idxk, nvskey[idxk].name, ret, berr);
-	//send_strmsg(bmsg);
 	return ret;	
 	}
-#if 0
-/*
- * URI: /nvskupload/?part=part_name&ns=namespace_name&key=key_name
-*/	
-esp_err_t nvskey_upload_handler(httpd_req_t *req)
-	{
-	int ret = ESP_FAIL;
-	size_t size;
-	ESP_LOGI(TAG, "URI: %s", req->uri);
-	char query[128];
-	char part[32], ns[32], key[32];
-	if((size = req->content_len) > MAX_BLOB_DISPLAY)
-		{
-		char berr[64];
-		snprintf(berr, sizeof(berr), "file size too large (%d)\nmax supported size is %d",
-			req->content_len, MAX_BLOB_DISPLAY);
-		httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, berr);
-    	return ESP_OK;	
-		}
-// parse URI to get partition name, namespace name and key name
-// 1. Extract full query string
-    size_t qlen = httpd_req_get_url_query_len(req) + 1;
-	if (qlen < sizeof(query)) 
-    	{
-		if (httpd_req_get_url_query_str(req, query, sizeof(query)) == ESP_OK) 
-    		{
-// query now contains: "part=...&ns=...&key=..."
-// 2. Extract individual keys
-			if (httpd_query_key_value(query, "part", part, sizeof(part)) == ESP_OK) 
-	    		{
-				if (httpd_query_key_value(query, "ns", ns, sizeof(ns)) == ESP_OK)
-			    	{
-					if (httpd_query_key_value(query, "key", key, sizeof(key)) == ESP_OK) 
-						ret = ESP_OK;
-					else
-	        			ESP_LOGI(TAG, "missing key");
-					}
-				else
-					ESP_LOGI(TAG, "missing namespace");
-				}
-			else
-				ESP_LOGI(TAG, "missing partition name");
-			}
-		}
-	else
-		ESP_LOGI(TAG, "URI too long (%d)", qlen);
-	if(ret == ESP_OK)
-		{
-		ESP_LOGI(TAG, "part = %s / ns = %s / key = %s", part, ns, key);
-		char *buf = ((struct file_server_data *)req->user_ctx)->scratch;
-		int rcv = 0;
-		const esp_partition_t *np = NULL;
-		esp_partition_iterator_t pit = esp_partition_find(ESP_PARTITION_TYPE_ANY, ESP_PARTITION_SUBTYPE_DATA_NVS, part);
-		if(pit)
-			np = esp_partition_get(pit);
-		esp_partition_iterator_release(pit);
-		if(np)
-			{
-			int received;
-			while (rcv < size) 
-		    	{
-		        ESP_LOGI(TAG, "Remaining size : %d", size - rcv);
-		        // Receive the file part by part into a buffer 
-				if ((received = httpd_req_recv(req, buf, MIN(size - rcv, SCRATCH_BUFSIZE))) < 0) 
-		        	{
-		            if(received == HTTPD_SOCK_ERR_TIMEOUT) 
-		                continue;
-		
-		            ESP_LOGE(TAG, "File reception failed! %s / %d", esp_err_to_name(received), received);
-		            // In case of unrecoverable error,
-		            // Respond with 500 Internal Server Error 
-		            httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Failed to receive file");
-		            return ESP_FAIL;
-		        	}
-				else if(received == 0 && rcv < size)
-		        	{
-					ESP_LOGW(TAG, "Connection closed before receiving all data");
-					return ESP_FAIL;
-					}
-				memcpy(bstring + rcv, buf, received);
-				rcv += received;
-				}
-			nvs_handle_t handle;;
-			ret = nvs_open_from_partition(part, ns, NVS_READWRITE, &handle);
-			if(ret == ESP_OK)
-				{
-				ret = nvs_set_blob(handle, key, bstring, size);
-				if(ret == ESP_OK)
-					{
-					httpd_resp_set_status(req, "200 OK");
-    				httpd_resp_sendstr(req, "Key update OK");
-    				}
-				else
-    				{
-					httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Failed to update the key");
-					}
-				}
-			else
-				httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Failed to open namespace");
-			}
-		else
-			httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "partition not found");
-		}
-	return ret;	
-	}
-#endif

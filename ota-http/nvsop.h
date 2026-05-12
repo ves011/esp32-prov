@@ -68,7 +68,7 @@ void nvs_update_task(void *pvParameters);
 int nvs_set_val(int type, nvs_handle_t handle, char *name, int len, void *val);
 int nvs_update_key(int type, int nsidx, int keyidx, int len, void *val);
 int erase_nvs_key(int nsID, int keyID);
-esp_err_t nvskey_get_handler(httpd_req_t *req);
+int nvskey_get_handler(const uint8_t *start, const uint8_t *end, httpd_req_t *req);
 int init_update_key(int idxns, int idxkey, int ktype, size_t upd_len, errrep_t *errrep);
 int update_key_chunk(int idxns, int idxkey, int offset, int len, void *chunk, errrep_t *errrep);
 #if 0

@@ -47,7 +47,7 @@ void app_main(void)
 	esp_console_register_help_command();
 	register_system();
 	register_wifi();
-	register_nvsop();
+	//register_nvsop();
 	/* Set local timezone (used by UI and logging) */
 	setenv("TZ","EET-2EEST,M3.4.0/03,M10.4.0/04",1);
 	start_file_server(BASE_PATH);

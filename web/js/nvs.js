@@ -13,7 +13,7 @@ const NVS_TYPE_I64   = 0x18;  /*!< Type int64_t */
 const NVS_TYPE_STR   = 0x21;  /*!< Type string */
 const NVS_TYPE_BLOB  = 0x42;  /*!< Type blob */
 
-const NVSK_DOWNLOAD	    = "/nvskdownload/";
+const NVSK_DOWNLOAD	    = "/keydump/";
 
 function ws_send(msg)
 	{
@@ -46,7 +46,7 @@ function ws_receive(msg)
         else if(parsed.msg.params[0] == CMD_UPDATEKEY)
             {
             if(parsed.msg.params[2] == "0") //success
-                document.getElementById(parsed.msg.params[1]).style.color = "black";
+                removeupdate(parsed.msg.params[1]);
             }
         else if(parsed.msg.params[0] == CMD_UPDATEKEYREQ)
             {
@@ -62,13 +62,7 @@ function ws_receive(msg)
             parsed.msg.params[1] == PAR_PROGRESS &&
                 parsed.msg.params[2] == "1")
 			{
-            document.getElementById(parsed.msg.params[3]).style.color = "black";
-            for(i = 0; i < updid.length; i++)
-                if(updif[i].id == parsed.msg.params[3])
-                    {
-                    //remove from list
-                    }
-            }
+            removeupdate(parsed.msg.params[3]);
             }
         }
 	}
@@ -94,8 +88,7 @@ function send_key_chunks(msg)
         }
     else if(type == NVS_TYPE_BLOB)
         {
-        var l = 0, pc = 0, n = 0, pf = 0;
-        const b = document.getElementById(params[1]).value;
+        const b = document.getElementById(msg.params[1]).value;
         const num = b.trim().split(/[\s-]+/); //b.split(/(?:-| |\n)+/);
         const bytes = new Uint8Array(num.length);
         for(let i = 0; i < num.length; i++)
@@ -114,34 +107,38 @@ function send_key_chunks(msg)
     }
 function pushupdate(id)
     {
-    for(i = 0; i < updid.length; i++)
+    const idx = updid.indexOf(id);
+    if(idx == -1)
+        updid.push(id);
+    }
+function removeupdate(id)
+    {
+    document.getElementById(id).style.color = "black";
+    const idx = updid.indexOf(id);
+    if(idx != -1)
         {
-        if(updid[i].id == id)
-            break;
-        }
-    if(i == updid.length)
-        {
-        var key = {id: id, state: 0, nr_chunks: 0, sent_chunks: 0};
-        updid.push(key);
+        updid.splice(idx, 1);
+        if(updid.length == 0)
+            document.getElementById("commit_ch").disabled = true;
         }
     }
 function commitc()
     {
     for(i = 0; i < updid.length; i++)
         {
-        var idc = updid[i].id.split("_");
+        var idc = updid[i].split("_");
         var type = document.getElementById("t_" + idc[0] + "_" + idc[1]).attributes.name.value;
         var typen = Number(type);
         len = Number(document.getElementById("l_" + idc[0] + "_" + idc[1]).innerHTML);
         if(type > NVS_TYPE_I64)
-            var msgOut = createMessage(CMD_UPDATEKEYREQ, [updid[i].id, type, len]);
+            var msgOut = createMessage(CMD_UPDATEKEYREQ, [updid[i], type, len]);
         else
             {
             const buf = new ArrayBuffer(8);
             const view = new DataView(buf);
-            var val = BigInt(document.getElementById(updid[i].id).value);
+            var val = BigInt(document.getElementById(updid[i]).value);
             view.setBigUint64(buf, val, true);
-            var msgOut = createMessage(CMD_UPDATEKEY, [updid[i].id, type],  new Uint8Array(buf));
+            var msgOut = createMessage(CMD_UPDATEKEY, [updid[i], type],  new Uint8Array(buf));
             }
 
         var buffer = buildAppProto(msgOut);
@@ -364,6 +361,7 @@ function readfile(reader, file)
     {
     reader.readAsArrayBuffer(file);
     }
+/*
 function loadf(tarea)
     {
     var file = event.target.files[0];
@@ -405,6 +403,70 @@ function loadf(tarea)
         }
     var t = setTimeout(readfile, 300, reader, file)
     }
+*/
+function loadf(tarea, event)
+	{
+    const file = event.target.files[0];
+    if(!file)
+        return;
+    const label = document.getElementById("u_" + tarea);
+    if(label)
+        label.innerHTML = file.name;
+
+    const textarea = document.getElementById(tarea);
+    if(!textarea)
+		{
+        console.log("textarea not found:", tarea);
+        return;
+		}
+    const lenLabel = document.getElementById("l_" + tarea);
+    const reader = new FileReader();
+    document.body.style.cursor = "wait";
+    reader.onload = function(e)
+		{
+        try
+			{
+            const arrayBuffer = e.target.result;
+            const bytes = new Uint8Array(arrayBuffer);
+            let out = "";
+            for(let i = 0; i < bytes.length; i++)
+				{
+                out += bytes[i].toString(16).padStart(2, "0") + " ";
+
+                // group every 8 bytes
+                if((i + 1) % 8 === 0 &&
+                   (i + 1) % 16 !== 0)
+                    out += "- ";
+
+                // newline every 16 bytes
+                if((i + 1) % 16 === 0)
+                    out += "\n";
+            }
+            textarea.value = out.trimEnd();
+
+            // auto-adjust rows
+            //textarea.rows =
+            //    Math.max(1, Math.ceil(bytes.length / 16));
+
+            textarea.style.color = "rgb(255, 0, 0)";
+
+            if(lenLabel)
+                lenLabel.innerHTML = bytes.length;
+
+            document.getElementById("commit_ch").disabled = false;
+            pushupdate(tarea);
+            console.log("read " + bytes.length + " bytes");
+			}
+        finally{document.body.style.cursor = "default";}
+		};
+    reader.onerror = function()
+		{
+        document.body.style.cursor = "default";
+        alert("Error reading file");
+		};
+
+    reader.readAsArrayBuffer(file);
+	}
 function seltypes()
     {
     var v = Number(document.getElementsByName("types")[0].value);
@@ -483,8 +545,17 @@ function delsel()
     }
 function dump(id)
     {
+    const name = document.getElementById("kn_" + id).innerHTML;
+    const a = document.createElement("a");
+    a.href = location.origin + NVSK_DOWNLOAD + encodeURIComponent(id);
+    a.download = name + ".bin";
+    a.click();
+    }
+/*
+function dump(id)
+    {
 	// Create a link and set the URL using `createObjectURL`
-	var name = document.getElementById(id + "-name").innerHTML;
+	var name = document.getElementById("kn_" + id).innerHTML;
   	const link = document.createElement("a");
 	link.style.display = "none";
 	link.href = location.origin + NVSK_DOWNLOAD + id; 
@@ -502,3 +573,4 @@ function dump(id)
     	link.parentNode.removeChild(link);
   		}, 100);
 	}
+*/

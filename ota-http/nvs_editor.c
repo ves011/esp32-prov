@@ -388,7 +388,7 @@ static void insert_input_field(httpd_req_t *req, keydef_t *kd)
 <button id=\"dump\" onclick=\"dump(\'%d_%d\')\">Dump to...</button>&nbsp;&nbsp;&nbsp;\
 <button id=\"upload\" type=\"button\" onclick=\"document.getElementById('f_%d_%d').click()\">Upload from file</button>&nbsp;\
 <label id=\"u_%d_%d\"></label>\
-<input id=\"f_%d_%d\" type=\"file\" onchange=\"loadf('%d_%d')\" style=\"display: none;\"><br>&nbsp;</td>", 
+<input id=\"f_%d_%d\" type=\"file\" onchange=\"loadf('%d_%d', event)\" style=\"display: none;\"><br>&nbsp;</td>", 
 	kd->ns_idx, kd->key_idx, kd->ns_idx, kd->key_idx, kd->ns_idx, kd->key_idx, kd->ns_idx, kd->key_idx, kd->ns_idx, kd->key_idx);
 				httpd_resp_send_chunk(req, buf, strlen(buf));
 				}
