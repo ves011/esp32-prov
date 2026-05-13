@@ -43,6 +43,9 @@ extern const uint8_t _binary_main_js_end[]			asm("_binary_main_js_end");
 extern const uint8_t _binary_nvs_js_start[] 		asm("_binary_nvs_js_start");
 extern const uint8_t _binary_nvs_js_end[]			asm("_binary_nvs_js_end");
 
+extern const uint8_t _binary_hexed_js_start[] 		asm("_binary_hexed_js_start");
+extern const uint8_t _binary_hexed_js_end[]			asm("_binary_hexed_js_end");
+
 extern const uint8_t _binary_proto_js_start[] 		asm("_binary_appprotolegacy_js_start");
 extern const uint8_t _binary_proto_js_end[]			asm("_binary_appprotolegacy_js_end");
 
@@ -55,6 +58,7 @@ static const asset_t assets[] =
     {"/js/main.js",				_binary_main_js_start, 		_binary_main_js_end,   		"application/javascript", 	simple_get_handler},
     {"/js/appprotolegacy.js",	_binary_proto_js_start, 	_binary_proto_js_end,  		"application/javascript", 	simple_get_handler},
     {"/js/nvs.js",				_binary_nvs_js_start, 		_binary_nvs_js_end,  		"application/javascript", 	simple_get_handler},
+    {"/js/hexed.js",			_binary_hexed_js_start, 	_binary_hexed_js_end,  		"application/javascript", 	simple_get_handler},
     { "/favicon.ico",			_binary_favicon_ico_start, 	_binary_favicon_ico_end,	"image/x-icon", 			simple_get_handler},
     { "/upload/",				NULL,						NULL,						"text/html", 				flashing_post_handler},
     { "/download/",				NULL,						NULL,						"text/html", 				dump_get_handler},

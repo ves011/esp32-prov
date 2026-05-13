@@ -34,4 +34,5 @@ idf_component_register(
 		"../web/js/main.js"
 		"../web/js/appprotolegacy.js"
 		"../web/js/nvs.js"
+		"../web/js/hexed.js"
 		)

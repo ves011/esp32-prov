@@ -31,11 +31,28 @@ char nvs_selpart[16];
 rcv_keyval_t rcv_keyval[MAX_CONCURRENT_UPDATES] = {0};
 int nrcv = 0;
 
+static int cmp_ns(const void *a, const void *b)
+	{
+	const namespace_t *na = a;
+    const namespace_t *nb = b;
+	return strcmp(na->name, nb->name);
+	}
+	
+static int cmp_nvskey(const void *a, const void *b)
+	{
+    const nvskey_t *ka = a;
+    const nvskey_t *kb = b;
+    int ns_cmp = strcmp(namespace[ka->ns_idx].name, namespace[kb->ns_idx].name);
+    if(ns_cmp != 0)
+        return ns_cmp;
+    return strcmp(ka->name, kb->name);
+	}
+
 static char *TAG = "NVSOP"; 
 int get_nvs_entries(char *pName)
 	{
 	int i;
-	
+	esp_err_t res;
 	if(namespace)
 		free(namespace);
 	namespace = NULL;
@@ -48,12 +65,12 @@ int get_nvs_entries(char *pName)
 	strcpy(nvs_selpart, pName);
 	nvs_iterator_t it = NULL;
 	nvs_entry_info_t info;
- 	esp_err_t res = nvs_entry_find(pName, NULL, NVS_TYPE_ANY, &it);
+	// first step populate namespace array
+	res = nvs_entry_find(pName, NULL, NVS_TYPE_ANY, &it);
  	ESP_LOGI(TAG, "nvs_entry_find return: %s", esp_err_to_name(res));
 	while(res == ESP_OK) 
 		{
-	    nvs_entry_info(it, &info); // Can omit error check if parameters are guaranteed to be non-NULL
-	    ESP_LOGI(TAG, "ns: %s key: %s type: %d", info.namespace_name, info.key, info.type);
+	    nvs_entry_info(it, &info); 
 	    for(i = 0; i < nns; i++)
 	    	{
 	    	if(strcmp(namespace[i].name, info.namespace_name) == 0)
@@ -75,34 +92,56 @@ int get_nvs_entries(char *pName)
 				return ESP_FAIL;
 				}
 			}
-		nvskey_t *k = realloc(nvskey, sizeof(nvskey_t) * (nkeys + 1));
-		if(k)
-			{
-			nvskey = k;
-			strcpy(nvskey[nkeys].name, info.key);
-			nvskey[nkeys].ns_idx = i;
-			nvskey[nkeys].type = info.type;
-			if(info.type < NVS_TYPE_STR)
-				nvskey[nkeys].size = info.type & 0x0f;
-			nkeys++;
-			namespace[i].nentries++;
+		res = nvs_entry_next(&it);
+		}
+	nvs_release_iterator(it);
+	//sort namesapaces
+	qsort(namespace, nns, sizeof(namespace_t), cmp_ns);
+	
+	//second step populate nvskey
+ 	res = nvs_entry_find(pName, NULL, NVS_TYPE_ANY, &it);
+ 	ESP_LOGI(TAG, "nvs_entry_find return: %s", esp_err_to_name(res));
+	while(res == ESP_OK) 
+		{
+	    nvs_entry_info(it, &info); // Can omit error check if parameters are guaranteed to be non-NULL
+	    ESP_LOGI(TAG, "ns: %s key: %s type: %d", info.namespace_name, info.key, info.type);
+	    for(i = 0; i < nns; i++)
+	    	{
+	    	if(strcmp(namespace[i].name, info.namespace_name) == 0)
+	    		break;
 			}
-		else
+		if(i < nns)
 			{
-			ESP_LOGE(TAG, "error realloc nvskey");
-			return ESP_FAIL;
+			nvskey_t *k = realloc(nvskey, sizeof(nvskey_t) * (nkeys + 1));
+			if(k)
+				{
+				nvskey = k;
+				strcpy(nvskey[nkeys].name, info.key);
+				nvskey[nkeys].ns_idx = i;
+				nvskey[nkeys].type = info.type;
+				if(info.type < NVS_TYPE_STR)
+					nvskey[nkeys].size = info.type & 0x0f;
+				nkeys++;
+				namespace[i].nentries++;
+				}
+			else
+				{
+				ESP_LOGE(TAG, "error realloc nvskey");
+				return ESP_FAIL;
+				}
 			}
-		
 		res = nvs_entry_next(&it);
 	 	}
 	nvs_release_iterator(it);
+	//sort nvskeys
+	qsort(nvskey, nkeys, sizeof(nvskey_t), cmp_nvskey);
 	return ESP_OK;
 	}
 int create_nvs_key(char *pName, char *ns, char *key, int type, int len, char *phv)
 	{
 	int ret = ESP_OK;
 	uint64_t nval;
-	if(nns == 0 && nkeys == 0)
+	if(nns == 0 && nkeys == 0 && pName)
 		ret = get_nvs_entries(pName);
 	if(ret == ESP_OK)
 		{
@@ -189,6 +228,8 @@ int create_nvs_key(char *pName, char *ns, char *key, int type, int len, char *ph
 				}
 			}
 		}
+	if(ret == ESP_OK)
+		get_nvs_entries(nvs_selpart);
 	return ret;
 	}
 int update_key_chunk(int idxns, int idxkey, int offset, int len, void *chunk, errrep_t *errrep)

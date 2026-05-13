@@ -10,11 +10,10 @@ table.alternate tr:nth-child(even) {background-color: #c0c0c0;}
 button {width:120px}
 html.wait, html.wait * { cursor: wait !important; }
 </style>
-<!--<script type="module" src="../js/appproto.js"></script>-->
 <script src="../js/appprotolegacy.js"></script>
 <script src="../js/main.js"></script>
 </head>
-<body><!-- onLoad="pageload()">	-->
+<body onLoad="pageload()">
 <div id="Partitions">
 	<h1>Partition Table</h1>
 	<h6>(b) - boot partition<br>(*) - running partition</h6>
@@ -27,22 +26,6 @@ html.wait, html.wait * { cursor: wait !important; }
     		<th style="width: 100px; text-align:center;">size</th>
     	</tr>
   		<tr><td>insPart</td></tr>
-  		<!--
-  			<tr style="text-align:center;">
-  			<td><a href="nvs_editor.html">nvs</a></td>
-  			<td>data</td>
-  			<td>nvs</td>
-  			<td style="text-align:right;">0x9000</td>
-  			<td style="text-align:right;">0x4000</td>
-  		</tr>
-  		<tr style="text-align:center;">
-  			<td>otadata(*)</td>
-  			<td>data</td>
-  			<td>ota</td>
-  			<td style="text-align:right;">0xd000</td>
-  			<td style="text-align:right;">0x2000</td>
-  		</tr>
-  		 -->
   	</table>
   	<br>
   	<table>
@@ -51,8 +34,6 @@ html.wait, html.wait * { cursor: wait !important; }
   			<td style="width: 400px;">
   			<select name="parts" id="parts">
   				<option value="1">insertOptions</option>
-				<!--<option value="2">p1</option>
-				<option value="3">p2</option>-->
   			</select><label style="font-size: 10px;">(Only partitions which can be updated)</label>
 			</td>
   		</tr>
@@ -68,9 +49,4 @@ html.wait, html.wait * { cursor: wait !important; }
 </div>
 <br><br>
 <button id="reboot" onclick="esp_reboot()">Reboot</button>
-<!--
-<form id=reboot>
-<input type="hidden" name="reboot" id="reboot" value="">
-<button type="submit" onclick="javascript:update('reboot')">Reboot</button>
-</form>-->
 </body></html>

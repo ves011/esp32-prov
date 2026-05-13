@@ -13,7 +13,7 @@ function parseHexText(txt)
 
     return Uint8Array.from(hex.map(v => parseInt(v, 16)));
     }
-    
+
 function createHexEditor(textarea, bytes)
     {
     textarea.blobData = new Uint8Array(bytes);
@@ -103,7 +103,12 @@ function hexKeyDown(e)
     if(e.key === "Backspace" ||
        e.key === "Delete")
         {
-        const nibblePos = cursorToNibble(ta, ta.selectionStart);
+        let nibblePos = cursorToNibble(ta, ta.selectionStart);
+        if(e.key == "Backspace")
+            {
+            if(nibblePos >=2) nibblePos = nibblePos - 2;
+            else return;
+            }
         const bytePos = Math.floor(nibblePos / 2);
         if(bytePos >= ta.blobData.length)
             return;
@@ -112,34 +117,28 @@ function hexKeyDown(e)
         renderHexEditor(ta);
         const c = nibbleToCursor(ta, bytePos * 2);
         ta.selectionStart = ta.selectionEnd = c;
-        return;
         }
-    if(!isHexChar(e.key))
-        return;
-
-    const nibblePos = cursorToNibble(ta, ta.selectionStart);
-    const bytePos = Math.floor(nibblePos / 2);
-    if(bytePos >= ta.blobData.length)
-        return;
-
-    let v = ta.blobData[bytePos];
-    const nibble = parseInt(e.key, 16);
-    // high nibble
-    if((nibblePos % 2) === 0)
+    else if(isHexChar(e.key))
         {
-        v = (v & 0x0F) | (nibble << 4);
-        }
-    // low nibble
-    else
-        {
-        v = (v & 0xF0) | nibble;
-        }
+        const nibblePos = cursorToNibble(ta, ta.selectionStart);
+        const bytePos = Math.floor(nibblePos / 2);
+        if(bytePos >= ta.blobData.length)
+            return;
 
-    ta.blobData[bytePos] = v;
-    renderHexEditor(ta);
-    const nextCursor = nibbleToCursor(ta, nibblePos + 1);
-    ta.selectionStart = ta.selectionEnd = nextCursor;
+        let v = ta.blobData[bytePos];
+        const nibble = parseInt(e.key, 16);
+        if((nibblePos % 2) === 0) // high nibble
+            v = (v & 0x0F) | (nibble << 4);
+        else // low nibble
+            v = (v & 0xF0) | nibble;
+        ta.blobData[bytePos] = v;
+        renderHexEditor(ta);
+        const nextCursor = nibbleToCursor(ta, nibblePos + 1);
+        ta.selectionStart = ta.selectionEnd = nextCursor;
+        }
     ta.style.color = "rgb(255,0,0)";
+    document.getElementById("commit_ch").disabled = false;
+    pushupdate(ta.id);
     }
 
 
@@ -166,20 +165,15 @@ function hexPaste(e)
             break;
         let v = ta.blobData[bytePos];
         const nibble = parseInt(clean[i], 16);
-        if((nibblePos % 2) === 0)
-            {
-            v = (v & 0x0F) | (nibble << 4);
-            }
-        else
-            {
-            v = (v & 0xF0) | nibble;
-            }
+        if((nibblePos % 2) === 0) {v = (v & 0x0F) | (nibble << 4);}
+        else {v = (v & 0xF0) | nibble;}
         ta.blobData[bytePos] = v;
         nibblePos++;
         }
     renderHexEditor(ta);
-
     const c = nibbleToCursor(ta, nibblePos);
     ta.selectionStart = ta.selectionEnd = c;
     ta.style.color = "rgb(255,0,0)";
+    document.getElementById("commit_ch").disabled = false;
+    pushupdate(ta.id);
     }

@@ -1,7 +1,8 @@
 var c_connected = false;
 var websocket  = null;
 var updid = [];
-const chunk_size = 10;
+var chunk_size = 512;
+var max_blob_size = 4096;
 const NVS_TYPE_U8    = 0x01;  /*!< Type uint8_t */
 const NVS_TYPE_I8    = 0x11;  /*!< Type int8_t */
 const NVS_TYPE_U16   = 0x02;  /*!< Type uint16_t */
@@ -64,6 +65,11 @@ function ws_receive(msg)
 			{
             removeupdate(parsed.msg.params[3]);
             }
+        else if(parsed.msg.params[0] == OP_CONFIG)
+            {
+            chunk_size = Number(params[1]);
+            max_blob_size = Number(params[2]);
+            }
         }
 	}
 function send_key_chunks(msg)
@@ -88,11 +94,7 @@ function send_key_chunks(msg)
         }
     else if(type == NVS_TYPE_BLOB)
         {
-        const b = document.getElementById(msg.params[1]).value;
-        const num = b.trim().split(/[\s-]+/); //b.split(/(?:-| |\n)+/);
-        const bytes = new Uint8Array(num.length);
-        for(let i = 0; i < num.length; i++)
-            bytes[i] = parseInt(num[i], 16);
+        const bytes = document.getElementById(msg.params[1]).blobData;
         let offset = 0;
         while(offset < bytes.length)
             {
@@ -188,8 +190,6 @@ function update_len(event)
     }
 function pageload()
     {
-    //document.addEventListener("beforeinput", beforeInputHandler);
-    //document.addEventListener("keydown", keyDownHandler);
     document.addEventListener("beforeinput", keysDecHandler);
     document.addEventListener("input", update_len);
     var inp = document.getElementsByClassName("hed");
@@ -200,9 +200,6 @@ function pageload()
         inp[i].addEventListener("paste", hexPaste);
         inp[i].spellcheck = false;
         inp[i].wrap = "off";
-
-        //inp[i].addEventListener("beforeinput", handleKeysHex, false);
-        //inp[i].addEventListener("keydown", handleDelete, false);
         }
     inp = document.querySelectorAll(".sel2del, .sel2delns");
     for (i = 0; i < inp.length; i++)
@@ -210,12 +207,21 @@ function pageload()
         inp[i].addEventListener("click", setSel);
         }
 
-
     const wsUri = window.location.origin + "/ws";
 	websocket = new WebSocket(wsUri);
 	websocket.addEventListener("open", () => {console.log("CONNECTED"); c_connected = true;});
 	websocket.addEventListener("close", (event) => {console.log("DISCONNECTED: " + event.data); c_connected = false;});
 	websocket.onmessage = (msg) => {ws_receive(msg);};
+    window.addEventListener('beforeunload', function (event) 
+        {
+        if(document.getElementById("commit_ch").disabled == false)
+            {
+            event.preventDefault();
+            event.returnValue = "Are you sure you want to leave this page?"; //anyway this prompt is ignored
+            }
+        else
+            return;
+        });
     }
 function setSel(e)
     {
@@ -254,62 +260,6 @@ function setSel(e)
             }
         }
     }
-function handleDelete(e) 
-    {
-    if (e.key == "Delete" || e.key == 'Backspace') 
-        {
-        var nod = false;
-        e.stopPropagation();
-        e.preventDefault();
-        var target = e.target;
-        var start = target.selectionStart;
-        var end = target.selectionEnd;
-        var chs = target.value[start];
-        var che = target.value[start];
-        if(start > 0)
-            {
-            if (e.key == "Delete")
-                {
-                if(start > target.value.length - 1)
-                    return;
-                while (start > 0 && start < target.value.length - 1 && "\n\t |".indexOf(target.value.substring(start, start + 1)) != -1)
-                    start++;
-                target.value = target.value.substring(0, start) + "0" + target.value.substring(start + 1);
-                mod = true;
-                }
-            else
-                {
-                while (start > 0 && "\n\t -".indexOf(target.value.substring(start - 1, start)) != -1)
-                    start--;
-                target.value = target.value.substring(0, start - 1) + "0" + target.value.substring(start);
-                mod = true;
-                }
-            }
-        else if (start == 0)
-            {
-            if (e.key == "Delete")
-                {
-                target.value = "0" + target.value.substring(1);
-                mod = true;
-                }
-            }
-
-        if (e.key == "Delete")
-            target.selectionStart = target.selectionEnd = start;
-        else
-            {
-            while (start > 1 && "\n\t -".indexOf(target.value.substring(start - 2, start - 1)) != -1)
-                start--;
-            target.selectionStart = target.selectionEnd = start - 1;
-            }
-        if(mod)
-            {
-            this.style.color = "rgb(255, 0, 0)";
-            document.getElementById("commit_ch").disabled = false;
-            pushupdate(target.id);
-            }
-        }
-    }
 
 function updatelen(e) 
     {
@@ -317,136 +267,19 @@ function updatelen(e)
     var l = target.value.length;
     document.getElementById("l_" + e.target.id).innerHTML = l; 
     }
-function handleKeysDec(e) 
-    {
-    var target = e.target;
-    var start = e.target.selectionStart;
-    var typed = String(e.data);
-    var upd = false;
-    if(target.className == "sed")
-        {
-        upd = true;
-        }
-    else if((e.inputType == "deleteContentBackward" || e.inputType == "deleteContentForward") ||
-        ('0123456789'.indexOf(typed) >= 0))
-        upd = true;
-    else if(target.className == "ied")
-        {
-        if(typed == "-" && start == 0 && target.value.indexOf("-") == -1)
-            upd = true;
-        }
-    if(upd)
-        {
-        this.style.color = "rgb(255, 0, 0)";
-        document.getElementById("commit_ch").disabled = false; 
-        pushupdate(target.id);     
-        }
-    else {e.stopPropagation(); e.preventDefault();}
-    }
-function handleKeysHex(e) 
-    {
-    e.stopPropagation();
-    e.preventDefault();
-      
-    var target = e.target;
-    var start = target.selectionStart;
-    var typed = String(e.data).toLowerCase();
-    if (target.selectionStart == target.value.length) 
-        return;
-    if ('0123456789abcdef'.indexOf(typed) == -1)
-        return;
-    while ("\t\n -".indexOf(target.value.substring(start, start + 1)) != -1)
-        {
-        start++;
-        if(start > target.value.length)
-            return;
-        }
-    target.value = target.value.substring(0, start) +
-                     e.data +
-                     target.value.substring(start + 1);
-    while (start < target.value.length - 1 && "\t\n |".indexOf(target.value.substring(start + 1, start + 2)) != -1)
-        start++;
-    target.selectionStart = target.selectionEnd = start + 1;
-    
-    this.style.color = "rgb(255, 0, 0)";
-    document.getElementById("commit_ch").disabled = false;
-    pushupdate(target.id);
-    }
 
 function showhide(ns)
     {
     var collection = document.getElementsByClassName(ns);
     if(anch = document.getElementById(ns))
         {
-        if(anch.innerHTML == "+")
-            {
-            disp = "";
-            anch.innerHTML = "-";
-            }
-        else
-            {
-            disp = "none";
-            anch.innerHTML = "+";
-            }
+        if(anch.innerHTML == "+") {disp = ""; anch.innerHTML = "-";}
+        else {disp = "none"; anch.innerHTML = "+";}
         for(var i = 0; i < collection.length; ++i)
             collection[i].style.display = disp;
         }
     }
-function buf2hex(buffer) 
-    {
-    nb = [...new Uint8Array(buffer)]
-      .map(x => x.toString(16).padStart(2, '0'))
-      .join(' ');
-    return nb;
-    }
 
-function readfile(reader, file)
-    {
-    reader.readAsArrayBuffer(file);
-    }
-/*
-function loadf(tarea)
-    {
-    var file = event.target.files[0];
-    var fn = document.getElementById("u_" + tarea);
-    if(fn)
-        fn.innerHTML = file.name;
-    var reader = new FileReader();
-    document.body.style.cursor = 'wait';
-    reader.onload = function(event)
-        {
-        //document.body.style.cursor = 'wait';
-        var arrayBuffer = event.target.result;
-  	    var array = new Uint8Array(arrayBuffer);
-		var fileSize = arrayBuffer.byteLength;
-		let bytes = [];
-		for (i = 0; i < fileSize; i++) 
-			bytes.push(array[i]);
-        buf = buf2hex(array);
-        b = buf.toString();
-        console.log("read " + i + " bytes");
-        var ta = document.getElementById(tarea);
-        ta.value = "";
-        i = 0;
-        while(i < buf.length)
-            {
-            ta.value += buf[i];
-            i++;
-            if(i % 24 == 0 && i % 48 != 0)
-                ta.value += "- ";
-            if(i % 48 == 0)
-                ta.value += "\n";
-            }
-        ta.style.color = "rgb(255, 0, 0)";
-        var l = document.getElementById("l_" + tarea);
-        l.innerHTML = fileSize;
-        document.getElementById("commit_ch").disabled = false;
-        pushupdate(tarea);
-        document.body.style.cursor = 'default';
-        }
-    var t = setTimeout(readfile, 300, reader, file)
-    }
-*/
 function loadf(tarea, event)
 	{
     const file = event.target.files[0];
@@ -612,26 +445,3 @@ function dump(id)
     a.download = name + ".bin";
     a.click();
     }
-/*
-function dump(id)
-    {
-	// Create a link and set the URL using `createObjectURL`
-	var name = document.getElementById("kn_" + id).innerHTML;
-  	const link = document.createElement("a");
-	link.style.display = "none";
-	link.href = location.origin + NVSK_DOWNLOAD + id; 
-
-	link.download = name + ".bin";
-
-  // It needs to be added to the DOM so it can be clicked
-  	document.body.appendChild(link);
-  	link.click();
-
-	// To make this work on Firefox we need to wait
-	// a little while before removing it.
-	setTimeout(() => {
-    	URL.revokeObjectURL(link.href);
-    	link.parentNode.removeChild(link);
-  		}, 100);
-	}
-*/

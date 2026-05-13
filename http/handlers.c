@@ -287,6 +287,7 @@ esp_err_t ws_handler(httpd_req_t *req)
 				return ESP_FAIL;
 				}
         	wsfd = httpd_req_to_sockfd(req);
+        	
         	}
         return ESP_OK;
     	}

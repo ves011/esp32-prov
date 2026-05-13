@@ -27,7 +27,8 @@ const PAR_ERROR    = "error";
 //Operations
 const OP_UPLOAD     = "upload";
 const OP_DOWNLOAD	= "download";
-const OP_UPDATEKEY	= "update key"
+const OP_UPDATEKEY	= "update key";
+const OP_CONFIG		= "configuration";
 
 const CMD_SETBOOT       = "set boot";
 const CMD_ERASEPART     = "erase partition";
