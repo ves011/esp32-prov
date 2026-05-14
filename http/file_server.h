@@ -1,25 +1,24 @@
-/*
- * SPDX-FileCopyrightText: 2022 Espressif Systems (Shanghai) CO LTD
- *
- * SPDX-License-Identifier: Unlicense OR CC0-1.0
- */
-/* HTTP File Server Example, common declarations
 
-   This example code is in the Public Domain (or CC0 licensed, at your option.)
+#ifndef FILE_SERVER_H_
+#define FILE_SERVER_H_
 
-   Unless required by applicable law or agreed to in writing, this
-   software is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
-   CONDITIONS OF ANY KIND, either express or implied.
-*/
-
-#pragma once
-
-#include "esp_err.h"
 #include "esp_http_server.h"
+#include "esp_vfs.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+#define SCRATCH_BUFSIZE  	8192
+#define MAX_BLOB_SIZE		SCRATCH_BUFSIZE
+
+#define NVSK_DOWNLOAD		"/keydump/"
+#define PART_DOWNLOAD		"/download/"
+#define PART_UPLOAD			"/upload/"
+
+struct file_server_data {
+    /* Base path of file storage */
+    char base_path[ESP_VFS_PATH_MAX + 1];
+
+    /* Scratch buffer for temporary storage during file transfer */
+    char scratch[SCRATCH_BUFSIZE];
+};
 
 typedef int (*uri_handler_t)(const uint8_t *start, const uint8_t *end, httpd_req_t *req);
 
@@ -31,11 +30,11 @@ typedef struct {
     uri_handler_t page_handler;
 } asset_t;
 
+extern struct file_server_data server_data;
 extern httpd_handle_t w_server;
-esp_err_t example_mount_storage(const char *base_path);
+extern int wsfd;
 
 esp_err_t start_file_server(const char *base_path);
+esp_err_t ws_handler(httpd_req_t *req);
 
-#ifdef __cplusplus
-}
-#endif
+#endif // FILE_SERVER_H_

@@ -5,6 +5,8 @@
  *      Author: viorel_serbu
  */
 
+//
+
 #include <esp_wifi.h>
 #include <esp_event.h>
 #include <esp_log.h>
@@ -16,11 +18,12 @@
 #include "esp_err.h"
 #include <esp_http_server.h>
 #include <nvs.h>
-#include "esp_partition.h"
-#include "handlers.h"
-#include "html_builder.h"
-#include "nvsop.h"
 #include "nvs_editor.h"
+#include "nvsop.h"
+#include "part_editor.h"
+#include "esp_partition.h"
+#include "html_builder.h"
+#include "file_server.h"
 
 static const char *TAG = "NVSEDITOR";
 #define BUFSIZE			1024
@@ -28,7 +31,7 @@ static const char *TAG = "NVSEDITOR";
 static void insert_ns_row(httpd_req_t *req, int ns_idx);
 static void insert_key_row(httpd_req_t *req, keydef_t *kd);
 static void insert_input_field(httpd_req_t *req, keydef_t *kd);
-int get_nvs_entries(char *pName);
+//int get_nvs_entries(char *pName);
 int get_key_val(keydef_t *kd)
 	{
 	switch(kd->type)
@@ -345,11 +348,11 @@ static void insert_input_field(httpd_req_t *req, keydef_t *kd)
 		}
 	else if(kd->type == NVS_TYPE_BLOB)
 		{
-		if(kd->len > MAX_BLOB_DISPLAY)
+		if(kd->len > MAX_BLOB_SIZE)
 			{
 			snprintf(buf, BUFSIZE, "<td><div class=\"large-blob\"><b>!!! Blob size > %d !!!</b></div><br> \
 <button id=\"dump\" onclick=\"dump(\'%d_%d\')\">Dump to...</button>&nbsp;&nbsp;&nbsp;<br>&nbsp;</td>", 
-				MAX_BLOB_DISPLAY, kd->ns_idx, kd->key_idx);
+				MAX_BLOB_SIZE, kd->ns_idx, kd->key_idx);
 			httpd_resp_send_chunk(req, buf, strlen(buf));
 			}
 		else
@@ -394,4 +397,44 @@ static void insert_input_field(httpd_req_t *req, keydef_t *kd)
 				}
 			}				
 		}
+	}
+	
+int nvskey_get_handler(const uint8_t *start, const uint8_t *end, httpd_req_t *req)
+	{
+    char *buf, berr[60], bmsg[120];
+    int ret = ESP_FAIL, idxn, idxk;
+    nvs_handle_t nvsh;
+	sscanf(req->uri + strlen(NVSK_DOWNLOAD), "%d_%d", &idxn, &idxk);
+	ESP_LOGI(TAG, "uri: %s /msg: %s / idxn: %d / idxk: %d", req->uri, bmsg, idxn, idxk);
+	if(idxk < nkeys && nvskey[idxk].type == NVS_TYPE_BLOB)
+		{
+		buf = calloc(nvskey[idxk].size, 1);
+		if(buf)
+			{
+			ret = nvs_open_from_partition(nvs_selpart, namespace[idxn].name, NVS_READONLY, &nvsh);
+			if(ret == ESP_OK)
+				{
+				ret = nvs_get_blob(nvsh, nvskey[idxk].name, buf, &nvskey[idxk].size);
+				if(ret == ESP_OK)
+					{
+					ret = httpd_resp_send_chunk(req, buf, nvskey[idxk].size);
+					if(ret == ESP_OK)
+						ESP_LOGI(TAG, "key dump complete");
+					httpd_resp_send_chunk(req, NULL, 0);
+					}
+				}
+			}
+		else
+			strcpy(berr, "cannot allocate memory to read BLOB data");
+		}
+	else
+		sprintf(berr,  "invalid key index or key type not BLOB (%d)", idxk);
+
+	if(ret == ESP_FAIL)
+		ESP_LOGI(TAG, "%s", berr);
+	else
+		strcpy(berr, esp_err_to_name(ret));
+	
+	ESP_LOGI(TAG, "dump key: %s", berr);
+	return ret;	
 	}

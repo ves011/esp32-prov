@@ -15,11 +15,10 @@
 #include "esp_err.h"
 #include "freertos/idf_additions.h"
 #include "file_server.h"
-#include "handlers.h"
-#include "nvsop.h"
-//#include "spiffsop.h"
 #include "app_proto.h"
 #include "ws_client_handler.h"
+#include "../handlers/nvsop.h"
+#include "part_editor.h"
 
 static char *TAG = "WS_CLIENT";
 QueueHandle_t ws_msg_queue;

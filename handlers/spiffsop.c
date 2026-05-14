@@ -5,7 +5,8 @@
  *      Author: viorel_serbu
  */
 
-#include "spiffsop.h"
+#include "../handlers/spiffsop.h"
+#include "../handlers/spiffsop.h"
 
 #include <esp_wifi.h>
 #include <esp_event.h>
@@ -35,7 +36,6 @@
 //#include "keep_alive.h"
 #include "sys/dirent.h"
 #include "ws_client_handler.h"
-#include "spiffsop.h"
 
 static char *TAG = "filesys";
 static fentry_t *flist = NULL;

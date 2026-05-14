@@ -5,8 +5,8 @@
  *      Author: viorel_serbu
  */
 
-#ifndef OTA_HTTP_SPIFFSOP_H_
-#define OTA_HTTP_SPIFFSOP_H_
+#ifndef HANDLERS_SPIFFSOP_H_
+#define HANDLERS_SPIFFSOP_H_
 
 #include <esp_http_server.h>
 
@@ -22,4 +22,4 @@ int list_files(char *pname, size_t *total, size_t * used);
 int create_file(char * fname);
 
 
-#endif /* OTA_HTTP_SPIFFSOP_H_ */
+#endif /* HANDLERS_SPIFFSOP_H_ */

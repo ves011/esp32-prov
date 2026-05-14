@@ -2,8 +2,6 @@ var c_connected = false;
 var websocket  = null;
 var xhttp;
 
-window.addEventListener("DOMContentLoaded", pageload);
-
 function setBoot()
 	{
 	var pName = document.getElementById("parts").value;

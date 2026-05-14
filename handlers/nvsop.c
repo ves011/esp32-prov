@@ -5,6 +5,8 @@
  *      Author: viorel_serbu
  */
 
+#include "../handlers/nvsop.h"
+
 #include <esp_wifi.h>
 #include <esp_event.h>
 #include <esp_log.h>
@@ -16,16 +18,15 @@
 #include <spi_flash_mmap.h>
 #include "esp_err.h"
 #include <nvs.h>
-#include "handlers.h"
-#include "ws_client_handler.h"
+
 #include "nvs_editor.h"
-#include "nvsop.h"
+#include "part_editor.h"
+#include "ws_client_handler.h"
 
 namespace_t *namespace = NULL;
 nvskey_t *nvskey = NULL;
 int nns, nkeys;
 char nvs_selpart[16];
-//QueueHandle_t receive_q = NULL;
 
 // request for update structure
 rcv_keyval_t rcv_keyval[MAX_CONCURRENT_UPDATES] = {0};
@@ -472,42 +473,3 @@ int erase_nvs_key(int nsID, int keyID)
 	return ret;
 	} 
 	
-int nvskey_get_handler(const uint8_t *start, const uint8_t *end, httpd_req_t *req)
-	{
-    char *buf, berr[60], bmsg[120];
-    int ret = ESP_FAIL, idxn, idxk;
-    nvs_handle_t nvsh;
-	sscanf(req->uri + strlen(NVSK_DOWNLOAD), "%d_%d", &idxn, &idxk);
-	ESP_LOGI(TAG, "uri: %s /msg: %s / idxn: %d / idxk: %d", req->uri, bmsg, idxn, idxk);
-	if(idxk < nkeys && nvskey[idxk].type == NVS_TYPE_BLOB)
-		{
-		buf = calloc(nvskey[idxk].size, 1);
-		if(buf)
-			{
-			ret = nvs_open_from_partition(nvs_selpart, namespace[idxn].name, NVS_READONLY, &nvsh);
-			if(ret == ESP_OK)
-				{
-				ret = nvs_get_blob(nvsh, nvskey[idxk].name, buf, &nvskey[idxk].size);
-				if(ret == ESP_OK)
-					{
-					ret = httpd_resp_send_chunk(req, buf, nvskey[idxk].size);
-					if(ret == ESP_OK)
-						ESP_LOGI(TAG, "key dump complete");
-					httpd_resp_send_chunk(req, NULL, 0);
-					}
-				}
-			}
-		else
-			strcpy(berr, "cannot allocate memory to read BLOB data");
-		}
-	else
-		sprintf(berr,  "invalid key index or key type not BLOB (%d)", idxk);
-
-	if(ret == ESP_FAIL)
-		ESP_LOGI(TAG, "%s", berr);
-	else
-		strcpy(berr, esp_err_to_name(ret));
-	
-	ESP_LOGI(TAG, "dump key: %s", berr);
-	return ret;	
-	}

@@ -1,9 +1,11 @@
 /*
- * handlers.c
+ * part_editor.c
  *
  *  Created on: Feb 18, 2026
  *      Author: viorel_serbu
  */
+
+#include "part_editor.h"
 
 #include <esp_wifi.h>
 #include <esp_event.h>
@@ -17,78 +19,32 @@
 #include "esp_http_server.h"
 #include "esp_ota_ops.h"
 #include "esp_partition.h"
-#include "freertos/idf_additions.h"
-#include "freertos/projdefs.h"
 #include "esp_image_format.h"
 #include "project_specific.h"
 #include "cmd_wifi.h"
 #include "utils.h"
-#include "keep_alive.h"
+#include "file_server.h"
 #include "ws_client_handler.h"
-#include "handlers.h"
 
 static const char *TAG = "handler";
-//static int genconf_update(char *params);
 static void enum_partitions(httpd_req_t *req);
 static void insert_part_options(httpd_req_t *req);
 int npart;
 ptable_t pTable[MAX_UPDPART];
-//static char pname[10][20];
-int wsfd;
-struct file_server_data server_data;
 
-/* Copies the full path into destination buffer and returns
- * pointer to path (skipping the preceding base path) */
-static const char* get_path_from_uri(char *dest, const char *base_path, const char *uri, size_t destsize)
-{
-    const size_t base_pathlen = strlen(base_path);
-    size_t pathlen = strlen(uri);
-
-    const char *quest = strchr(uri, '?');
-    if (quest) {
-        pathlen = MIN(pathlen, quest - uri);
-    }
-    const char *hash = strchr(uri, '#');
-    if (hash) {
-        pathlen = MIN(pathlen, hash - uri);
-    }
-
-    if (base_pathlen + pathlen + 1 > destsize) {
-        /* Full path string won't fit into destination buffer */
-        return NULL;
-    }
-
-    /* Construct full path (base + path) */
-    strcpy(dest, base_path);
-    strlcpy(dest + base_pathlen, uri, pathlen + 1);
-
-    /* Return pointer to path, skipping the base */
-    return dest + base_pathlen;
-}
 
 esp_err_t root_get_handler(const uint8_t *start, const uint8_t *end, httpd_req_t *req)
 	{
 	//char buf[32];
-	char filepath[512];
+	//char filepath[512];
 	char *pchar = NULL, *last_pchar;
-	extern char main_page_start[] asm("_binary_main_html_start");
-    extern char main_page_end[]   asm("_binary_main_html_end");
-    //insert_value("devName", dev_conf.dev_name);
-    //const size_t main_page_size = (main_page_end - main_page_start);
     
-    if(restart_in_progress == 1)
-    	my_esp_restart();
-    const char *filename = get_path_from_uri(filepath, "/",
-                                             req->uri, sizeof(filepath));
-	ESP_LOGI(TAG, "uri: \"%s\" / fname: \"%s\" / fpath: \"%s\"", req->uri, filename, filepath);
-                   
-    httpd_resp_set_type(req, "text/html");
-    //httpd_resp_send(req, "<h1>Hello Secure World!</h1>", HTTPD_RESP_USE_STRLEN);
-    //httpd_resp_send(req, main_page_start, main_page_size);
-    // find first value=\" 
-    last_pchar = main_page_start;
-    
-    pchar = strstr((char *)main_page_start, "id=\"devName\"");
+	if(restart_in_progress == 1)
+		my_esp_restart();
+
+	ESP_LOGI(TAG, "uri: \"%s\"", req->uri);
+    last_pchar = (char *)start;
+    pchar = strstr((char *)start, "id=\"devName\"");
 	pchar = strstr(last_pchar, INSERTPARTITIONS);
 	if(pchar)
 		{
@@ -110,7 +66,7 @@ esp_err_t root_get_handler(const uint8_t *start, const uint8_t *end, httpd_req_t
 		}
 	
 	//send remaining data
-	httpd_resp_send_chunk(req, last_pchar, main_page_end - last_pchar);
+	httpd_resp_send_chunk(req, last_pchar, (char *)end - last_pchar);
 	
 	//end of page
 	httpd_resp_send_chunk(req, NULL, 0);
@@ -268,116 +224,7 @@ void insert_part_options(httpd_req_t *req)
 	httpd_resp_sendstr_chunk(req, opt_chunk);
 	}
 	
-esp_err_t ws_handler(httpd_req_t *req)
-	{
-	wsmsg_t msg;
-    if (req->method == HTTP_GET) 
-    	{
-        ESP_LOGI(TAG, "Handshake done, the new connection was opened");
-        ESP_LOGI(TAG, "HTTP_GET ws_handler: httpd_handle_t=%p, sockfd=%d, client_info:%d", 
-         			req->handle,
-                 	httpd_req_to_sockfd(req), 
-                 	httpd_ws_get_fd_info(req->handle, httpd_req_to_sockfd(req)));
-        if(httpd_ws_get_fd_info(req->handle, httpd_req_to_sockfd(req)) == 2)
-        	{
-			int fd = httpd_req_to_sockfd(req);
-			if(wsfd != 0 && wsfd != fd)
-				{
-				ESP_LOGI(TAG, "Rejecting second client");
-				return ESP_FAIL;
-				}
-        	wsfd = httpd_req_to_sockfd(req);
-        	
-        	}
-        return ESP_OK;
-    	}
-    httpd_ws_frame_t ws_pkt;
-    uint8_t *buf = NULL;
-    memset(&ws_pkt, 0, sizeof(httpd_ws_frame_t));
 
-    // First receive the full ws message
-    /* Set max_len = 0 to get the frame len */
-    esp_err_t ret = httpd_ws_recv_frame(req, &ws_pkt, 0);
-    if (ret != ESP_OK) 
-    	{
-        ESP_LOGE(TAG, "httpd_ws_recv_frame failed to get frame len with %d", ret);
-        return ret;
-    	}
-    ESP_LOGI(TAG, "frame len is %d", ws_pkt.len);
-    if (ws_pkt.len) 
-    	{
-        /* ws_pkt.len + 1 is for NULL termination as we are expecting a string */
-        buf = calloc(1, ws_pkt.len + 1);
-        if (buf == NULL) 
-        	{
-            ESP_LOGE(TAG, "Failed to calloc memory for buf");
-            return ESP_ERR_NO_MEM;
-        	}
-        ws_pkt.payload = buf;
-        /* Set max_len = ws_pkt.len to get the frame payload */
-        ret = httpd_ws_recv_frame(req, &ws_pkt, ws_pkt.len);
-        if (ret != ESP_OK) 
-        	{
-            ESP_LOGE(TAG, "httpd_ws_recv_frame failed with %d", ret);
-            free(buf);
-            return ret;
-        	}
-    	}
-    // If it was a PONG, update the keep-alive
-    if (ws_pkt.type == HTTPD_WS_TYPE_PONG) 
-    	{
-        ESP_LOGI(TAG, "Received PONG message");
-        free(buf);
-        return wss_keep_alive_client_is_active(httpd_get_global_user_ctx(req->handle),
-                httpd_req_to_sockfd(req));
-    	} 
-    else if (ws_pkt.type == HTTPD_WS_TYPE_TEXT || ws_pkt.type == HTTPD_WS_TYPE_BINARY || ws_pkt.type == HTTPD_WS_TYPE_PING || ws_pkt.type == HTTPD_WS_TYPE_CLOSE) 
-    	{
-        if (ws_pkt.type == HTTPD_WS_TYPE_TEXT || ws_pkt.type == HTTPD_WS_TYPE_BINARY) 
-        	{
-			char b[40];
-			memcpy(b, (char *)ws_pkt.payload, 32);
-			b[32] = 0;
-            ESP_LOGI(TAG, "Received packet with message: %s", b);
-            msg.fd = httpd_req_to_sockfd(req);
-            msg.len = ws_pkt.len + 1; 
-            //memcpy(msg.payload.strpayload, ws_pkt.payload, sizeof(msg.payload.binpayload));
-
-			size_t copy_len = MIN(ws_pkt.len, sizeof(msg.payload.binpayload) - 1);
-			memcpy(msg.payload.strpayload, ws_pkt.payload, copy_len);
-			msg.payload.strpayload[copy_len] = '\0';
-            
-            xQueueSend(ws_msg_queue, &msg, pdMS_TO_TICKS(20));
-            free(buf);
-            return ESP_OK;
-        	} 
-        else if (ws_pkt.type == HTTPD_WS_TYPE_PING) 
-        	{
-            // Respond PONG packet to peer
-            ESP_LOGI(TAG, "Got a WS PING frame, Replying PONG");
-            ws_pkt.type = HTTPD_WS_TYPE_PONG;
-        	} 
-        else if (ws_pkt.type == HTTPD_WS_TYPE_CLOSE) 
-        	{
-            // Response CLOSE packet with no payload to peer
-            ws_pkt.len = 0;
-            ws_pkt.payload = NULL;
-            if (wsfd == httpd_req_to_sockfd(req))
-        		wsfd = 0;
-        	}
-        ret = httpd_ws_send_frame(req, &ws_pkt);
-        if (ret != ESP_OK) 
-        	{
-            ESP_LOGE(TAG, "httpd_ws_send_frame failed with %d", ret);
-        	}
-        ESP_LOGI(TAG, "ws_handler: httpd_handle_t=%p, sockfd=%d, client_info:%d", req->handle,
-                 httpd_req_to_sockfd(req), httpd_ws_get_fd_info(req->handle, httpd_req_to_sockfd(req)));
-        free(buf);
-        return ret;
-    	}
-    free(buf);
-    return ESP_OK;
-	}
 int set_bp(char *pName)
 	{
 	int ret = ESP_FAIL;

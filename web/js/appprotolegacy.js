@@ -1,8 +1,9 @@
+/*
 const SEP = "\x01";
 const MAX_PARAMS = 10;
 const MAX_TOKENS = 32;
 const PROTO_VERSION = 1;
-
+*/
 class AppProto {
     constructor() 
         {
@@ -19,7 +20,7 @@ class AppProto {
         this.payload = null; // Uint8Array or null
         }
     }
-
+/*
 //Parameters
 const PAR_PROGRESS = "progress";
 const PAR_ERROR    = "error";
@@ -45,7 +46,7 @@ const RSP_CMD           = "rsp_cmd";
 const RSP_CONFIRMATION  = "rsp_conf";
 
 const URC_STATUS        = "urc_status";
-
+*/
 /*
 Frame format:
   header \x01 payload(optional)

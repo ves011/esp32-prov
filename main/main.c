@@ -6,16 +6,17 @@
 #include <nvs_flash.h>
 #include <sys/param.h>
 #include <esp_console.h>
+
+#include "../handlers/nvsop.h"
+#include "../handlers/spiffsop.h"
 #include "esp_err.h"
 #include "project_specific.h"
 #include "common_defines.h"
-#include "spiffsop.h"
 #include "utils.h"
 #include "ntp_sync.h"
 #include "cmd_system.h"
 #include "cmd_wifi.h"
 #include "file_server.h"
-#include "nvsop.h"
 #include "esp_spiffs.h"
 
 static const char *TAG = "OTA-main";
