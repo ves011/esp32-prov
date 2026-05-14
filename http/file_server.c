@@ -64,7 +64,7 @@ extern const uint8_t _binary_favicon_ico_end[]	 		asm("_binary_favicon_ico_end")
 */
 static const asset_t assets[] = 
 	{
-    {"/part",					_binary_main_html_start,		_binary_main_html_end,		"text/html", 				root_get_handler},
+    {"/part",					_binary_main_html_start,		_binary_main_html_end,		"text/html", 				part_get_handler},
     {"/js/main.js",	_binary_main_js_start,	_binary_main_js_end,"application/javascript",simple_get_handler},
     {"/js/appprotolegacy.js",	_binary_proto_js_start, 		_binary_proto_js_end,  		"application/javascript", 	simple_get_handler},
     {"/js/nvs.js",				_binary_nvs_js_start, 			_binary_nvs_js_end,  		"application/javascript", 	simple_get_handler},
@@ -73,7 +73,7 @@ static const asset_t assets[] =
     { "/favicon.ico",			_binary_favicon_ico_start, 		_binary_favicon_ico_end,	"image/x-icon", 			simple_get_handler},
     { "/upload/",				NULL,							NULL,						"text/html", 				flashing_post_handler},
     { "/download/",				NULL,							NULL,						"text/html", 				dump_get_handler},
-    { "/a",						NULL,							NULL,						"text/html", 				root_update_handler},
+    { "/a",						NULL,							NULL,						"text/html", 				part_update_handler},
     { "/nvs",					_binary_nvs_page_start,			_binary_nvs_page_end,		"text/html", 				nvs_get_handler},
     { "/keydump/",				NULL,							NULL,						"application/octet-stream",	nvskey_get_handler},
 	};
@@ -224,8 +224,6 @@ esp_err_t ws_handler(httpd_req_t *req)
             ESP_LOGI(TAG, "Received packet with message: %s", b);
             msg.fd = httpd_req_to_sockfd(req);
             msg.len = ws_pkt.len + 1; 
-            //memcpy(msg.payload.strpayload, ws_pkt.payload, sizeof(msg.payload.binpayload));
-
 			size_t copy_len = MIN(ws_pkt.len, sizeof(msg.payload.binpayload) - 1);
 			memcpy(msg.payload.strpayload, ws_pkt.payload, copy_len);
 			msg.payload.strpayload[copy_len] = '\0';

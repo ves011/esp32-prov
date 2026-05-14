@@ -29,9 +29,9 @@ typedef struct
 extern int npart;
 extern ptable_t pTable[MAX_UPDPART];
 
-esp_err_t root_get_handler(const uint8_t *start, const uint8_t *end, httpd_req_t *req);
-esp_err_t main_post_handler(httpd_req_t *req);
-esp_err_t root_update_handler(const uint8_t *start, const uint8_t *end, httpd_req_t *req);
+esp_err_t part_get_handler(const uint8_t *start, const uint8_t *end, httpd_req_t *req);
+esp_err_t part_post_handler(httpd_req_t *req);
+esp_err_t part_update_handler(const uint8_t *start, const uint8_t *end, httpd_req_t *req);
 esp_err_t set_boot_handler(httpd_req_t *req);
 esp_err_t flashing_post_handler(const uint8_t *start, const uint8_t *end, httpd_req_t *req);
 esp_err_t dump_get_handler(const uint8_t *start, const uint8_t *end, httpd_req_t *req);

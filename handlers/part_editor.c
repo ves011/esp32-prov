@@ -33,7 +33,7 @@ int npart;
 ptable_t pTable[MAX_UPDPART];
 
 
-esp_err_t root_get_handler(const uint8_t *start, const uint8_t *end, httpd_req_t *req)
+esp_err_t part_get_handler(const uint8_t *start, const uint8_t *end, httpd_req_t *req)
 	{
 	//char buf[32];
 	//char filepath[512];
@@ -74,7 +74,7 @@ esp_err_t root_get_handler(const uint8_t *start, const uint8_t *end, httpd_req_t
     return ESP_OK;
 	}
 
-esp_err_t root_update_handler(const uint8_t *start, const uint8_t *end, httpd_req_t *req)
+esp_err_t part_update_handler(const uint8_t *start, const uint8_t *end, httpd_req_t *req)
 	{
 	ESP_LOGI(TAG, "root_update_handler %s", req->uri);
 	char*  buf = malloc(req->content_len + 2);
