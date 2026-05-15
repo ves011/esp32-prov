@@ -2,6 +2,21 @@ var c_connected = false;
 var websocket  = null;
 var xhttp;
 
+function unixToLocal(ts)
+	{
+    const d = new Date(ts * 1000);
+
+    const yyyy = d.getFullYear();
+    const mm   = String(d.getMonth() + 1).padStart(2, "0");
+    const dd   = String(d.getDate()).padStart(2, "0");
+
+    const hh   = String(d.getHours()).padStart(2, "0");
+    const min  = String(d.getMinutes()).padStart(2, "0");
+	const sec  = String(d.getSeconds()).padStart(2, "0");
+
+    return `${yyyy}-${mm}-${dd} ${hh}:${min}`;
+	}
+
 function setBoot()
 	{
 	var pName = document.getElementById("parts").value;
@@ -86,6 +101,19 @@ function ws_receive(msg)
 				}
 			}
 		}
+	else if(parsed.msg.command == URC_DEVINFO)
+		{
+		if(parsed.msg.params[0] == PAR_DEVTIME)
+			document.getElementById("devtime").innerHTML = unixToLocal(parsed.msg.params[1]);
+		if(parsed.msg.params[0] == PAR_STAIP)
+			document.getElementById("sta_ip").innerHTML = parsed.msg.params[1];
+		if(parsed.msg.params[0] == PAR_APIP)
+			document.getElementById("ap_ip").innerHTML = parsed.msg.params[1];
+		if(parsed.msg.params[0] == PAR_STASSID)
+			document.getElementById("sta_ssid").innerHTML = parsed.msg.params[1];
+		if(parsed.msg.params[0] == PAR_STARSSI)
+			document.getElementById("sta_rssi").innerHTML = parsed.msg.params[1];
+		}
 	}
 function selFile(event)
 	{
@@ -125,11 +153,24 @@ function dump()
 	window.location.href =
         "/download/" + encodeURIComponent(name);
 	}
+function ws_open()
+	{
+	console.log("CONNECTED"); 
+	c_connected = true;
+	document.getElementById("sta_ssid").innerHTML = "connected";
+	}
+function ws_close(event)
+	{
+	console.log("DISCONNECTED: " + event.data); 
+	c_connected = false;
+	document.getElementById("sta_ssid").innerHTML = "not connected";
+	}
+
 function pageload()
     {
     const wsUri = window.location.origin + "/ws";
 	websocket = new WebSocket(wsUri);
-	websocket.addEventListener("open", () => {console.log("CONNECTED"); c_connected = true;});
-	websocket.addEventListener("close", (event) => {console.log("DISCONNECTED: " + event.data); c_connected = false;});
+	websocket.addEventListener("open", ws_open());// => {console.log("CONNECTED"); c_connected = true;});
+	websocket.addEventListener("close", ws_close(event));// => {console.log("DISCONNECTED: " + event.data); c_connected = false;});
 	websocket.onmessage = (msg) => {ws_receive(msg);};
 	}

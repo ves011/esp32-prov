@@ -93,6 +93,8 @@ server 2 client			DELETE_KEY_RESP\1key|namespace name\1error code\1error string\
 //server 2 client		DUMP_KEY\1keyID\1keyName\1error code\1error string\1
 //#define DUMP_KEY		"dump key"
 
+#define MAX_LEN_PROTO_MSG		256
+
 typedef void (*cmd_handler_t)(app_proto_t *msg);
 
 typedef struct 
@@ -130,6 +132,8 @@ void send_strmsg(char *msg);
 //void send_binmsg(char *msg, int len);
 void ws_send_status(const char *op, const char *status, int err,  const char *txt);
 void send_rsp_cmd(app_proto_t *msgIn, int err, char *errtxt);
+void send_devinfo(const char *info_type, const char *info_val);
+void reset_wifi_state();
 
 
 #endif /* MAIN_WS_CLIENT_HANDLER_H_*/

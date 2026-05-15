@@ -159,8 +159,10 @@ function keysDecHandler(event)
         var upd = false;
         if(e.className == "sed")
             {
-            upd = true;
-            document.getElementById("nk_len").value = e.value.length;
+            if(e.id == "phv")
+                document.getElementById("nk_len").value = e.value.length;
+            else
+                upd = true;
             }
         else if((event.inputType == "deleteContentBackward" || event.inputType == "deleteContentForward") ||
             ('0123456789'.indexOf(typed) >= 0))
@@ -174,18 +176,27 @@ function keysDecHandler(event)
             {
             e.style.color = "rgb(255, 0, 0)";
             document.getElementById("commit_ch").disabled = false; 
-            //pushupdate(target.id);     
+            pushupdate(e.id);     
             }
         else {event.stopPropagation(); event.preventDefault();}
         }
     }
 function update_len(event)
     {
-    var v = Number(document.getElementsByName("types")[0].value);
-    if(event.target.id == "phv" &&
-        Number(v) == NVS_TYPE_STR)
+    if(event.target.id == "phv")
         {
-        document.getElementById("nk_len").value = document.getElementById(event.target.id).value.length;
+        var v = Number(document.getElementsByName("types")[0].value);
+        if(Number(v) == NVS_TYPE_STR)
+            document.getElementById("nk_len").value = document.getElementById(event.target.id).value.length;
+        }
+    else
+        {
+        const type = document.getElementById("t_" + event.target.id).getAttribute("name");
+        if(Number(type) == NVS_TYPE_STR)
+            {
+            const len = document.getElementById(event.target.id).value.length;
+            document.getElementById("l_" + event.target.id).innerHTML = len + 1; //NVS key length needs to include null terminating char
+            }
         }
     }
 function pageload()

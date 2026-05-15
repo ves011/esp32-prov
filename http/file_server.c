@@ -10,12 +10,16 @@
 #include <sys/stat.h>
 #include <dirent.h>
 
+#include "app_proto.h"
 #include "esp_err.h"
 #include "esp_log.h"
 
 #include "esp_vfs.h"
 //#include "esp_spiffs.h"
 #include "esp_http_server.h"
+#include "freertos/idf_additions.h"
+#include "cmd_wifi.h"
+#include "protocoldef.h"
 #include "ws_client_handler.h"
 #include "keep_alive.h"
 #include "file_server.h"
@@ -80,6 +84,43 @@ static const asset_t assets[] =
 
 esp_err_t generic_handler(httpd_req_t *req);
 
+static void dev_timer_callback(void* arg)
+	{
+	//wsmsg_t *msgw = (wsmsg_t *)arg;
+	static wsmsg_t msgw;
+	app_proto_t msg;
+	time_t t = time(NULL);
+	if(t % 60 == 0)
+		{
+	    memset(&msg, 0, sizeof(msg));
+	    memset(&msgw, 0, sizeof(wsmsg_t));
+	    msg.version = PROTO_VERSION;
+	    msg.hdr_fields = 7;
+	    msg.payload_len = 0;
+	    msg.command = URC_DEVINFO;
+	    msg.nparams = 2;
+	    msg.params[0] = PAR_DEVTIME;
+	    msg.params[1] = "";
+	    if(!build_app_proto(msgw.payload.binpayload, MAX_LEN_PROTO_MSG, &msg, &msgw.len))
+			xQueueSend(ws_msg_queue, &msgw, 0);
+		}
+	if(t % 10 == 0)
+		{
+		//check wifi state
+	    memset(&msg, 0, sizeof(msg));
+	    memset(&msgw, 0, sizeof(wsmsg_t));
+	    msg.version = PROTO_VERSION;
+	    msg.hdr_fields = 7;
+	    msg.payload_len = 0;
+	    msg.command = URC_DEVINFO;
+	    msg.nparams = 2;
+	    msg.params[0] = PAR_WIFI;
+	    msg.params[1] = "";
+	    if(!build_app_proto(msgw.payload.binpayload, MAX_LEN_PROTO_MSG, &msg, &msgw.len))
+			xQueueSend(ws_msg_queue, &msgw, 0);
+		}
+	}
+
 static esp_err_t simple_get_handler(const uint8_t *start, const uint8_t *end, httpd_req_t *req)
 	{
     httpd_resp_send(req, (const char *)start, end - start);
@@ -92,6 +133,7 @@ esp_err_t start_file_server(const char *base_path)
 	{
     httpd_handle_t server = NULL;
     httpd_config_t config = HTTPD_DEFAULT_CONFIG();
+    //static wsmsg_t wsmsg;
     config.stack_size = 8192;
 
     config.uri_match_fn = httpd_uri_match_wildcard;
@@ -108,7 +150,15 @@ esp_err_t start_file_server(const char *base_path)
     	}
     create_ws_client_handler();
 	w_server = server;
-
+	esp_timer_handle_t dev_timer;
+	esp_timer_create_args_t dev_timer_args = 
+		{
+    	.callback = &dev_timer_callback,
+    	//.arg = &wsmsg,
+        .name = "dev_timer"
+    	};
+    ESP_ERROR_CHECK(esp_timer_create(&dev_timer_args, &dev_timer));
+    ESP_ERROR_CHECK(esp_timer_start_periodic(dev_timer, 1000000));
 	static const httpd_uri_t ws = {
         .uri        = "/ws",
         .method     = HTTP_GET,
@@ -170,7 +220,24 @@ esp_err_t ws_handler(httpd_req_t *req)
 				return ESP_FAIL;
 				}
         	wsfd = httpd_req_to_sockfd(req);
-        	
+        	app_proto_t msgproto;
+        	memset(&msg, 0, sizeof(wsmsg_t));
+	    	memset(&msgproto, 0, sizeof(app_proto_t));
+	    	msgproto.version = PROTO_VERSION;
+		    msgproto.hdr_fields = 7;
+		    msgproto.payload_len = 0;
+		    msgproto.command = URC_DEVINFO;
+		    msgproto.nparams = 2;
+		    
+		    msgproto.params[0] = PAR_DEVTIME;
+		    msgproto.params[1] = "";
+		    if(!build_app_proto(msg.payload.binpayload, MAX_LEN_PROTO_MSG, &msgproto, &msg.len))
+				xQueueSend(ws_msg_queue, &msg, 0);
+			
+			msgproto.params[0] = PAR_WIFI;
+		    msgproto.params[1] = "";
+		    if(!build_app_proto(msg.payload.binpayload, MAX_LEN_PROTO_MSG, &msgproto, &msg.len))
+				xQueueSend(ws_msg_queue, &msg, 0);
         	}
         return ESP_OK;
     	}
@@ -246,7 +313,10 @@ esp_err_t ws_handler(httpd_req_t *req)
             int fd = httpd_req_to_sockfd(req);
             ESP_LOGI(TAG, "websocket closed %d / %d", wsfd, fd);
             if (wsfd == fd)
+            	{
         		wsfd = 0;
+        		reset_wifi_state();
+        		}
         	}
         ret = httpd_ws_send_frame(req, &ws_pkt);
         if (ret != ESP_OK) 

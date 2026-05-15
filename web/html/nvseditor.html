@@ -25,6 +25,13 @@ tr {border-bottom: 1px solid black;}
 /* Clear floats after the columns */
 .row:after {content: ""; display: table; clear: both;}
 .large-blob {background: #eee; color: #666; padding: 6px; font-style: italic;}
+#devinfo 
+	{
+	position: absolute; top: 10px; right: 10px; border: 1px solid #808080; 
+	border-radius: 4px; padding: 10px; background: #f5f5f5; font-size: 12px; min-width: 240px;
+	}
+#devinfo table {margin: 0;}
+#devinfo td {padding: 2px 6px; white-space: nowrap;}
 </style>
 <script src="../js/protocoldef.js"></script>
 <script src="../js/appprotolegacy.js"></script>
@@ -75,6 +82,26 @@ tr {border-bottom: 1px solid black;}
         </div>
     </div>
     <div class="columnb">
+        <div id="devinfo">
+            <table>
+                <tr style="border: none;">
+                    <td><b>AP IP</b></td>
+                    <td id="ap_ip">192.168.4.1</td>
+                </tr>
+                <tr style="border: none;">
+                    <td><b>STA IP</b></td>
+                    <td id="sta_ip">not connected</td>
+                </tr>
+                <tr style="border: none;">
+                    <td><b>Device time</b></td>
+                    <td id="devtime">2026-05-14 21:18:44</td>
+                </tr>
+                <tr style="border: none;">
+                    <td></td>
+                    <td><button onclick="syncTime()">Sync Time</button></td>
+                </tr>
+            </table>
+        </div>
         <div style="margin-top: 50px;width: 800px;">
             <h3 style="font-size: 16px;">Create new key/value pair</h3>
             <table>

@@ -13,12 +13,16 @@
 #include <sys/param.h>
 #include "cmd_wifi.h"
 #include "esp_err.h"
+#include "esp_wifi.h"
+#include <esp_wifi_types_generic.h>
 #include "freertos/idf_additions.h"
 #include "file_server.h"
 #include "app_proto.h"
 #include "ws_client_handler.h"
 #include "../handlers/nvsop.h"
+#include "lwip/netif.h"
 #include "part_editor.h"
+#include "protocoldef.h"
 
 static char *TAG = "WS_CLIENT";
 QueueHandle_t ws_msg_queue;
@@ -36,6 +40,9 @@ static void handle_update_key(app_proto_t *msg);
 static void handle_create_key(app_proto_t *msg);
 static void handle_delete_ns(app_proto_t *msg);
 static void handle_delete_key(app_proto_t *msg);
+static void handle_devinfo(app_proto_t *msg);
+static void handle_synctime(app_proto_t *msg);
+static void check_wifi_state();
 
 static const cmd_entry_t cmd_table[] = {
     { CMD_SETBOOT,        	handle_setboot },
@@ -48,11 +55,13 @@ static const cmd_entry_t cmd_table[] = {
     { CMD_CREATEKEY,      	handle_create_key },
     { CMD_DELTENS,        	handle_delete_ns },
     { CMD_DELETEKEY,      	handle_delete_key },
+    { URC_DEVINFO,      	handle_devinfo },
+    { CMD_SYNCTIME,      	handle_synctime },
 	};
 #define CMD_TABLE_SIZE sizeof(cmd_table) / sizeof(cmd_table[0])
 
-#define MAX_LEN_PROTO_MSG		256
-
+static char ssid[32];
+static uint32_t apip, staip, starssi;
 
 void send_ws_txtframe(char *msg)
 	{
@@ -430,10 +439,133 @@ void send_rsp_cmd(app_proto_t *msgIn, int err, char *errtxt)
 		}
 	send_app_proto(&msgOut);
 	}
+void send_devinfo(const char *info_type, const char *info_val)
+	{
+	app_proto_t msgOut;	
+	msgOut.version = PROTO_VERSION;
+	msgOut.hdr_fields = 7;
+	msgOut.payload_len = 0;
+	msgOut.timestamp = time(NULL);
+	msgOut.command = URC_DEVINFO;
+	msgOut.nparams = 2;
+	msgOut.params[0] = (char *)info_type;
+	msgOut.params[1] = (char *)info_val;
+	send_app_proto(&msgOut);
+	}
 static void send_app_proto(app_proto_t *msg)
 	{
 	char ws_buf[MAX_LEN_PROTO_MSG];
 	int ws_buf_len = 0;
 	if(!build_app_proto((uint8_t *)ws_buf, MAX_LEN_PROTO_MSG, msg, &ws_buf_len))
 		send_ws_txtframe(ws_buf);
+	}
+	
+static void handle_devinfo(app_proto_t *msg)
+	{
+	char ws_buf[MAX_LEN_PROTO_MSG];
+	int ws_buf_len = 0;
+	if(strcmp(msg->params[0], PAR_DEVTIME) == 0)
+		{
+		time_t ts = time(NULL);
+		char btime[20];
+		snprintf(btime, sizeof(btime), "%llu", ts);
+		msg->params[1] = btime;
+		if(!build_app_proto((uint8_t *)ws_buf, MAX_LEN_PROTO_MSG, msg, &ws_buf_len))
+			send_ws_txtframe(ws_buf);
+		}
+	else if(strcmp(msg->params[0], PAR_WIFI) == 0)
+		check_wifi_state();
+	}
+
+static void check_wifi_state()
+	{
+	char capip[32], cstaip[32], crssi[32];
+	esp_err_t err;
+	wifi_mode_t mode;
+	wifi_ap_record_t ap_info;
+	esp_netif_t *netif;
+	esp_netif_ip_info_t ip_info;
+	if(wsfd == 0)
+		return;
+		
+	err = esp_wifi_get_mode(&mode);
+	if(err == ESP_ERR_WIFI_NOT_INIT)
+		{
+		//no connection don't bother to send any status
+		return;
+		}
+	err = esp_wifi_sta_get_ap_info(&ap_info);
+	if(err == ESP_OK)
+		{
+		//if(strcmp((char *)ap_info.ssid, ssid))
+			{
+			send_devinfo(PAR_STASSID, (char *)ap_info.ssid);
+			strncpy(ssid, (char *)ap_info.ssid, sizeof(ssid) - 1);
+			ssid[sizeof(ssid) - 1] = 0;
+			}
+		if(starssi != ap_info.rssi)
+			{
+			sprintf(crssi, "%d", ap_info.rssi);
+			send_devinfo(PAR_STARSSI, crssi);
+			starssi = ap_info.rssi;
+			}
+		}
+	else if(err == ESP_ERR_WIFI_NOT_CONNECT)
+		{
+		if(strcmp(ssid, "not connected"))
+			{
+			strcpy(ssid, "not connected");
+			send_devinfo(PAR_STASSID, ssid);
+			strcpy(cstaip, "not connected");
+			send_devinfo(PAR_STAIP, cstaip);
+			strcpy(crssi, "not connected");
+			send_devinfo(PAR_STARSSI, crssi);
+			}
+		return;
+		}
+	netif = NULL;
+	do
+		{
+		netif = esp_netif_next_unsafe(netif);
+		if(!netif)
+			break;
+		//uint8_t mac[NETIF_MAX_HWADDR_LEN];
+		//esp_netif_get_mac(netif, mac);
+		err = esp_netif_get_ip_info(netif, &ip_info);
+		//ESP_LOGI(TAG, "esp_netif_get_desc(): %s", esp_netif_get_desc(netif));
+		if(err == ESP_OK)
+			{
+			if(strcmp(esp_netif_get_desc(netif),"ap") == 0)
+				{
+				//if(ip_info.ip.addr != apip)
+					{
+					sprintf(capip, IPSTR, IP2STR(&ip_info.ip));
+					send_devinfo(PAR_APIP, capip);
+					apip = ip_info.ip.addr;
+					}
+				}
+			else if(strcmp(esp_netif_get_desc(netif),"sta") == 0)
+				{
+				//if(ip_info.ip.addr != staip)
+					{
+					sprintf(cstaip, IPSTR, IP2STR(&ip_info.ip));
+					send_devinfo(PAR_STAIP, cstaip);
+					staip = ip_info.ip.addr;
+					}
+				}
+			}
+		} while (netif);
+	}
+void reset_wifi_state()
+	{
+	ssid[0] = 0;
+	apip = staip = starssi = 0;
+	return;
+	}
+static void handle_synctime(app_proto_t *msg)
+	{
+	struct timeval tv;
+	tv.tv_sec = msg->timestamp / 1000;
+	tv.tv_usec = (msg->timestamp % 1000) * 1000;
+	settimeofday(&tv, NULL);
 	}

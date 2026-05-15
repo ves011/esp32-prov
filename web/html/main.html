@@ -9,13 +9,49 @@ table.alternate tr:nth-child(odd) {background-color:  #ffffff;}
 table.alternate tr:nth-child(even) {background-color: #c0c0c0;}
 button {width:120px}
 html.wait, html.wait * { cursor: wait !important; }
+#devinfo 
+	{
+	position: absolute; top: 10px; right: 10px; border: 1px solid #808080; 
+	border-radius: 4px; padding: 10px; background: #f5f5f5; font-size: 12px; min-width: 240px;
+	}
+#devinfo table {margin: 0;}
+#devinfo td {padding: 2px 6px; white-space: nowrap;}
+
 </style>
 <script src="../js/protocoldef.js"></script>
 <script src="../js/appprotolegacy.js"></script>
 <script src="../js/main.js"></script>
 </head>
 <body onLoad="pageload()">
-<div id="Partitions">
+<div id="Partitions" style="position: relative;">
+	<div id="devinfo">
+		<table>
+			<tr>
+				<td><b>AP IP</b></td>
+				<td id="ap_ip">192.168.4.1</td>
+			</tr>
+			<tr>
+				<td><b>STA IP</b></td>
+				<td id="sta_ip">not connected</td>
+			</tr>
+			<tr>
+				<td><b>STA SSID</b></td>
+				<td id="sta_ssid">not connected</td>
+			</tr>
+			<tr>
+				<td><b>STA RSSI</b></td>
+				<td id="sta_rssi">not connected</td>
+			</tr>
+			<tr>
+				<td><b>Device time</b></td>
+				<td id="devtime">2026-05-14 21:18:44</td>
+			</tr>
+			<tr>
+				<td></td>
+				<td><button onclick="syncTime()">Sync Time</button></td>
+			</tr>
+		</table>
+    </div>
 	<h1>Partition Table</h1>
 	<h6>(b) - boot partition<br>(*) - running partition</h6>
 	<table class="alternate" style="text-align:left;">
