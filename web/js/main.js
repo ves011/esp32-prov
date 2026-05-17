@@ -118,6 +118,8 @@ function ws_receive(msg)
 function selFile(event)
 	{
 	document.getElementById("ustatus").innerHTML = "";
+	//try {const info = await parseEsp32Firmware(event.target.files[0]);}
+	//catch(err) {console.error(err);}
 	}
 function upload() 
 	{
@@ -157,20 +159,99 @@ function ws_open()
 	{
 	console.log("CONNECTED"); 
 	c_connected = true;
-	document.getElementById("sta_ssid").innerHTML = "connected";
+	document.getElementById("websock").innerHTML = "connected";
 	}
 function ws_close(event)
 	{
 	console.log("DISCONNECTED: " + event.data); 
 	c_connected = false;
-	document.getElementById("sta_ssid").innerHTML = "not connected";
+	document.getElementById("websock").innerHTML = "not connected";
 	}
 
+function syncTime()
+	{
+	var msg = createMessage(CMD_SYNCTIME, [], payload = null);
+	var ws_string = buildAppProto(msg);
+	ws_send(ws_string);
+	}
+
+// --------------------------------------------------
+// Parse ESP-IDF esp_app_desc_t from firmware image
+// Works directly in browser
+// --------------------------------------------------
+
+async function parseEsp32Firmware(file)
+    {
+    const buf = await file.arrayBuffer();
+    const data = new Uint8Array(buf);
+
+    // esp_app_desc_t magic word
+    // uint32_t 0xABCD5432 little endian
+    const magic = [0x32, 0x54, 0xCD, 0xAB];
+    // search first ~64kB only
+    // descriptor is always near image start
+    let pos = -1;
+    for(let i = 0; i < Math.min(data.length - 4, 65536); i++)
+        {
+        if(data[i] === magic[0] &&
+           data[i + 1] === magic[1] &&
+           data[i + 2] === magic[2] &&
+           data[i + 3] === magic[3])
+            {
+            pos = i;
+            break;
+            }
+        }
+
+    if(pos < 0)
+		{
+        const info = {secure_version : 0, version : "N/A", project_name : "N/A", compile_time : "N/A", compile_date : "N/A"}
+		return info;
+		}
+
+    // helper
+    function readString(offset, len)
+        {
+        const slice = data.slice(pos + offset, pos + offset + len);
+        // find first NULL
+        let end = slice.indexOf(0);
+        if(end < 0)
+            end = slice.length;
+        return new TextDecoder().decode(slice.slice(0, end));
+        }
+
+    // esp_app_desc_t layout
+    // offset relative to magic word
+    const info =
+        {
+        secure_version : new DataView(buf, pos + 4, 4).getUint32(0, true),
+        version : readString(8, 32),
+        project_name : readString(40, 32),
+        compile_time : readString(72, 16),
+        compile_date : readString(88, 16),
+        idf_version : readString(104, 32)
+        };
+    return info;
+    }
 function pageload()
     {
     const wsUri = window.location.origin + "/ws";
 	websocket = new WebSocket(wsUri);
 	websocket.addEventListener("open", ws_open());// => {console.log("CONNECTED"); c_connected = true;});
-	websocket.addEventListener("close", ws_close(event));// => {console.log("DISCONNECTED: " + event.data); c_connected = false;});
+	websocket.addEventListener("close", (event) => 
+		{
+		console.log("DISCONNECTED: " + event.data); 
+		c_connected = false;
+		document.getElementById("websock").innerHTML = "not connected";
+		});
 	websocket.onmessage = (msg) => {ws_receive(msg);};
+	document.getElementById("newfile").addEventListener("change", async (e) =>
+		{
+		try
+			{
+			const info = await parseEsp32Firmware(e.target.files[0]);
+			console.log(info);
+			}
+		catch(err) {console.error(err);}
+		});
 	}

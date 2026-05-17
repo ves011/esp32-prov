@@ -24,6 +24,8 @@ typedef struct
 	char name[20];
 	uint32_t address;
 	uint32_t size;
+	char build_date[64];
+	char build_ver[64];
 	} ptable_t;
 
 extern int npart;

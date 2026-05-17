@@ -7,6 +7,10 @@
 body {font-family: Arial;}
 table.alternate tr:nth-child(odd) {background-color:  #ffffff;}
 table.alternate tr:nth-child(even) {background-color: #c0c0c0;}
+th, td {
+  padding-left: 10px;
+  padding-right: 10px;
+}
 button {width:120px}
 html.wait, html.wait * { cursor: wait !important; }
 #devinfo 
@@ -43,6 +47,10 @@ html.wait, html.wait * { cursor: wait !important; }
 				<td id="sta_rssi">not connected</td>
 			</tr>
 			<tr>
+				<td><b>Web socket</b></td>
+				<td id="websock">not connected</td>
+			</tr>
+			<tr>
 				<td><b>Device time</b></td>
 				<td id="devtime">2026-05-14 21:18:44</td>
 			</tr>
@@ -56,13 +64,34 @@ html.wait, html.wait * { cursor: wait !important; }
 	<h6>(b) - boot partition<br>(*) - running partition</h6>
 	<table class="alternate" style="text-align:left;">
 		<tr>
-    		<th style="width: 100px;">name</th>
-    		<th style="width: 70px;">type</th>
-    		<th style="width: 70px;">subtype</th>
-    		<th style="width: 100px; text-align:center;">offset</th>
-    		<th style="width: 100px; text-align:center;">size</th>
+    		<th>name</th>
+    		<th style="text-align:center;padding-left: 20px;padding-right: 20px;">type</th>
+    		<th style="text-align:center;">subtype</th>
+    		<th style="text-align:center;">offset</th>
+    		<th style="text-align:center;">size</th>
+			<th style="text-align:center;">version</th>
+			<th style="text-align:center;">build date</th>
     	</tr>
   		<tr><td>insPart</td></tr>
+<!--		
+  		<tr><td><a href="nvs?nvs">nvs</a></td><td>DATA</td><td>NVS</td><td style="text-align:right;">0x9000</td><td style="text-align:right;">0x4000</td></tr>
+<tr><td>otadata</td><td>DATA</td><td>OTA</td><td style="text-align:right;">0xD000</td><td style="text-align:right;">0x2000</td></tr>
+<tr><td>phy_init</td><td>DATA</td><td>PHY</td><td style="text-align:right;">0xF000</td><td style="text-align:right;">0x1000</td></tr>
+<tr>
+	<td>ota_0</td>
+	<td>APP</td>
+	<td>ota_0</td>
+	<td style="text-align:right;">0x10000</td>
+	<td style="text-align:right;">0x190000</td>
+	<td style="text-align:left;">4.19-dirty</td>
+	<td style="text-align:right;">2025-11-28 18:49</td>
+</tr>
+<tr><td>ota_1</td><td>APP</td><td>ota_1</td><td style="text-align:right;">0x1A0000</td><td style="text-align:right;">0x130000</td></tr>
+<tr><td><a href="spiffs_editor.html?user">user</a></td><td>DATA</td><td>SPIFFS</td><td style="text-align:right;">0x2D0000</td><td style="text-align:right;">0x10000</td></tr>
+<tr><td>user1</td><td>DATA</td><td>LITTLEFS</td><td style="text-align:right;">0x2E0000</td><td style="text-align:right;">0x10000</td></tr>
+<tr><td>maintenance(b)(*)</td><td>APP</td><td>OTA</td><td style="text-align:right;">0x2F0000</td><td style="text-align:right;">0x110000</td></tr>
+-->
+  	</table>
   	</table>
   	<br>
   	<table>
@@ -82,8 +111,8 @@ html.wait, html.wait * { cursor: wait !important; }
   		</tr>
   		<tr><td><button id="dump" onclick="dump()">Dump</button></td></tr>
 		<tr><td><button id="erase" onclick="erase()">Erase</button></td></tr>
+		<tr><td>&nbsp;</td></tr>
+		<tr><td><button id="reboot" onclick="esp_reboot()">Reboot</button></td></tr>
   	</table>
 </div>
-<br><br>
-<button id="reboot" onclick="esp_reboot()">Reboot</button>
 </body></html>

@@ -565,6 +565,7 @@ void reset_wifi_state()
 static void handle_synctime(app_proto_t *msg)
 	{
 	struct timeval tv;
+	ESP_LOGI(TAG, "sync time");
 	tv.tv_sec = msg->timestamp / 1000;
 	tv.tv_usec = (msg->timestamp % 1000) * 1000;
 	settimeofday(&tv, NULL);

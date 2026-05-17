@@ -12,6 +12,7 @@
 #include <esp_log.h>
 #include <esp_system.h>
 #include <nvs_flash.h>
+#include <stdbool.h>
 #include <sys/param.h>
 #include <esp_log.h>
 #include <spi_flash_mmap.h>
@@ -115,9 +116,10 @@ esp_err_t part_update_handler(const uint8_t *start, const uint8_t *end, httpd_re
 	
 void enum_partitions(httpd_req_t *req)
 	{
-	char btmp[60];
+	char btmp[80], cversion[32], dtime[40];
 	char part_chunk[1024];
 	bool runp, upd;
+	esp_app_desc_t pdesc;
 	const esp_partition_t *np = NULL;
 	const esp_partition_t *bootp = esp_ota_get_boot_partition();
 	esp_partition_iterator_t pit = esp_partition_find(ESP_PARTITION_TYPE_ANY, ESP_PARTITION_SUBTYPE_ANY, NULL);
@@ -130,12 +132,34 @@ void enum_partitions(httpd_req_t *req)
     	np = esp_partition_get(pit);
     	if(np)
     		{
+			int ret = esp_ota_get_partition_description(np, &pdesc);
+			if(ret == ESP_OK)
+				{
+				strcpy(cversion, pdesc.version);
+				strcpy(dtime, pdesc.date);
+				strcat(dtime, " ");
+				strcat(dtime, pdesc.time);
+				}
+			else 
+				{
+				strcpy(cversion, "N/A");
+				strcpy(dtime, "N/A");
+				}
+				
 			ESP_LOGI(TAG, "part entry: %s %d %d %x %x", np->label, np->type, np->subtype, np->address, np->size);
 			
 			size_t phys_offs = spi_flash_cache2phys(enum_partitions);
 			if (np->address <= phys_offs && np->address + np->size > phys_offs)
 				runp = true;
-
+			if(np->type == ESP_PARTITION_TYPE_APP)
+				upd = true;
+			if(np->type == ESP_PARTITION_TYPE_DATA && 
+				(np->subtype == ESP_PARTITION_SUBTYPE_DATA_NVS || 
+				 np->subtype == ESP_PARTITION_SUBTYPE_DATA_SPIFFS ||
+				 np->subtype == ESP_PARTITION_SUBTYPE_DATA_LITTLEFS ||
+				 np->subtype == ESP_PARTITION_SUBTYPE_DATA_FAT ||
+				 np->subtype == ESP_PARTITION_SUBTYPE_DATA_COREDUMP))
+				 upd = true;
 			strcpy(part_chunk, "<tr><td>");
 			if(np->subtype == ESP_PARTITION_SUBTYPE_DATA_NVS)
 				{
@@ -170,15 +194,15 @@ void enum_partitions(httpd_req_t *req)
 				sprintf(btmp, "%d</td>", np->subtype - ESP_PARTITION_SUBTYPE_APP_OTA_MIN);
 				strlcat(part_chunk, "<td>ota_", sizeof(part_chunk));
 				strlcat(part_chunk, btmp, sizeof(part_chunk));
-				upd = true;
 				}
 			else if(np->subtype == ESP_PARTITION_SUBTYPE_DATA_OTA)strlcat(part_chunk, "<td>OTA</td>", sizeof(part_chunk));
+			else if(np->subtype == ESP_PARTITION_SUBTYPE_APP_FACTORY){strlcat(part_chunk, "<td>factory</td>", sizeof(part_chunk));}
 			else if(np->subtype == ESP_PARTITION_SUBTYPE_DATA_PHY)strlcat(part_chunk, "<td>PHY</td>", sizeof(part_chunk));
-			else if(np->subtype == ESP_PARTITION_SUBTYPE_DATA_NVS){strlcat(part_chunk, "<td>NVS</td>", sizeof(part_chunk)); upd = true;}
-			else if(np->subtype == ESP_PARTITION_SUBTYPE_DATA_COREDUMP){strlcat(part_chunk, "<td>COREDUMP</td>", sizeof(part_chunk)); upd = true;}
-			else if(np->subtype == ESP_PARTITION_SUBTYPE_DATA_FAT){strlcat(part_chunk, "<td>FAT</td>", sizeof(part_chunk)); upd = true;}
-			else if(np->subtype == ESP_PARTITION_SUBTYPE_DATA_SPIFFS){strlcat(part_chunk, "<td>SPIFFS</td>", sizeof(part_chunk)); upd = true;}
-			else if(np->subtype == ESP_PARTITION_SUBTYPE_DATA_LITTLEFS){strlcat(part_chunk, "<td>LITTLEFS</td>", sizeof(part_chunk)); upd = true;}
+			else if(np->subtype == ESP_PARTITION_SUBTYPE_DATA_NVS){strlcat(part_chunk, "<td>NVS</td>", sizeof(part_chunk)); }
+			else if(np->subtype == ESP_PARTITION_SUBTYPE_DATA_COREDUMP){strlcat(part_chunk, "<td>COREDUMP</td>", sizeof(part_chunk));}
+			else if(np->subtype == ESP_PARTITION_SUBTYPE_DATA_FAT){strlcat(part_chunk, "<td>FAT</td>", sizeof(part_chunk));;}
+			else if(np->subtype == ESP_PARTITION_SUBTYPE_DATA_SPIFFS){strlcat(part_chunk, "<td>SPIFFS</td>", sizeof(part_chunk));}
+			else if(np->subtype == ESP_PARTITION_SUBTYPE_DATA_LITTLEFS){strlcat(part_chunk, "<td>LITTLEFS</td>", sizeof(part_chunk));}
 			else strlcat(part_chunk, "other</td>", sizeof(part_chunk));
 			if(upd && npart < MAX_UPDPART)
 				{
@@ -199,8 +223,15 @@ void enum_partitions(httpd_req_t *req)
 			sprintf(btmp, "<td style=\"text-align:right;\">0x%X</td>", (unsigned int)np->address);
 			strlcat(part_chunk, btmp, sizeof(part_chunk));
 			
-			sprintf(btmp, "<td style=\"text-align:right;\">0x%X</td></tr>\n", (unsigned int)np->size);
+			sprintf(btmp, "<td style=\"text-align:right;\">0x%X</td>\n", (unsigned int)np->size);
 			strlcat(part_chunk, btmp, sizeof(part_chunk));
+			
+			sprintf(btmp, "<td style=\"text-align:left;\">%s</td>\n", cversion);
+			strlcat(part_chunk, btmp, sizeof(part_chunk));
+			
+			sprintf(btmp, "<td style=\"text-align:left;\">%s</td></tr>\n", dtime);
+			strlcat(part_chunk, btmp, sizeof(part_chunk));
+			
 			httpd_resp_sendstr_chunk(req, part_chunk);
     		}
     	pit = esp_partition_next(pit);
