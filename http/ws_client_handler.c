@@ -521,37 +521,28 @@ static void check_wifi_state()
 			strcpy(crssi, "not connected");
 			send_devinfo(PAR_STARSSI, crssi);
 			}
-		return;
 		}
 	netif = NULL;
+	strcpy(capip, "not available");
 	do
 		{
 		netif = esp_netif_next_unsafe(netif);
 		if(!netif)
 			break;
-		//uint8_t mac[NETIF_MAX_HWADDR_LEN];
-		//esp_netif_get_mac(netif, mac);
 		err = esp_netif_get_ip_info(netif, &ip_info);
-		//ESP_LOGI(TAG, "esp_netif_get_desc(): %s", esp_netif_get_desc(netif));
 		if(err == ESP_OK)
 			{
 			if(strcmp(esp_netif_get_desc(netif),"ap") == 0)
 				{
-				//if(ip_info.ip.addr != apip)
-					{
-					sprintf(capip, IPSTR, IP2STR(&ip_info.ip));
-					send_devinfo(PAR_APIP, capip);
-					apip = ip_info.ip.addr;
-					}
+				sprintf(capip, IPSTR, IP2STR(&ip_info.ip));
+				apip = ip_info.ip.addr;
+				send_devinfo(PAR_APIP, capip);
 				}
 			else if(strcmp(esp_netif_get_desc(netif),"sta") == 0)
 				{
-				//if(ip_info.ip.addr != staip)
-					{
-					sprintf(cstaip, IPSTR, IP2STR(&ip_info.ip));
-					send_devinfo(PAR_STAIP, cstaip);
-					staip = ip_info.ip.addr;
-					}
+				sprintf(cstaip, IPSTR, IP2STR(&ip_info.ip));
+				staip = ip_info.ip.addr;
+				send_devinfo(PAR_STAIP, cstaip);
 				}
 			}
 		} while (netif);

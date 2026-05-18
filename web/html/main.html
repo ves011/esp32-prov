@@ -97,20 +97,35 @@ html.wait, html.wait * { cursor: wait !important; }
   	<table>
   		<tr>
   			<td style="width: 150px;"><label>Select partition</label></td>
-  			<td style="width: 400px;">
+  			<td colspan="2" style="width: 280px;">
   			<select name="parts" id="parts">
   				<option value="1">insertOptions</option>
-  			</select><label style="font-size: 10px;">(Only partitions which can be updated)</label>
-			</td>
+  			</select><label style="font-size: 10px;">(Only partitions which can be updated)</label></td>
   		</tr>
-  		<tr><td><button type="submit" onclick="javascript:setBoot()">Set Boot</button></td></tr>
+  		<tr>
+			<td><button type="submit" onclick="javascript:setBoot()">Set Boot</button></td>
+		</tr>
   		<tr>
 			<td><button id="upload" type="button" onclick="upload()">Flash</button></td>
-			<td><input id="newfile" type="file" style="width:100%;" onchange="selFile(event)"></td>
+			<td colspan="2"><input id="newfile" type="file" style="width:100%;" onchange="selFile(event)"></td>
 			<td id="ustatus"></td>
   		</tr>
-  		<tr><td><button id="dump" onclick="dump()">Dump</button></td></tr>
-		<tr><td><button id="erase" onclick="erase()">Erase</button></td></tr>
+		<tr>
+			<td></td>
+			<td></td>
+			<td id = "verstr" style="font-size: 12px; text-align: end;">Version: N/A</td>
+		</tr>
+		<tr>
+			<td></td>
+			<td></td>
+			<td id = "buildstr" style="font-size: 12px; text-align: end;">Build time: N/A</td>
+		</tr>
+  		<tr>
+			<td><button id="dump" onclick="dump()">Dump</button></td>
+		</tr>
+		<tr>
+			<td><button id="erase" onclick="erase()">Erase</button></td>
+		</tr>
 		<tr><td>&nbsp;</td></tr>
 		<tr><td><button id="reboot" onclick="esp_reboot()">Reboot</button></td></tr>
   	</table>

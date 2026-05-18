@@ -160,6 +160,8 @@ void enum_partitions(httpd_req_t *req)
 				 np->subtype == ESP_PARTITION_SUBTYPE_DATA_FAT ||
 				 np->subtype == ESP_PARTITION_SUBTYPE_DATA_COREDUMP))
 				 upd = true;
+				 
+			// partition label
 			strcpy(part_chunk, "<tr><td>");
 			if(np->subtype == ESP_PARTITION_SUBTYPE_DATA_NVS)
 				{
@@ -185,25 +187,34 @@ void enum_partitions(httpd_req_t *req)
 				strlcat(part_chunk, "(*)", sizeof(part_chunk));
 			strlcat(part_chunk, "</td><td>", sizeof(part_chunk));
 			
+			// partition type
 			if(np->type == ESP_PARTITION_TYPE_APP) strlcat(part_chunk, "APP</td>", sizeof(part_chunk));
 			else if(np->type == ESP_PARTITION_TYPE_DATA) strlcat(part_chunk, "DATA</td>", sizeof(part_chunk));
 			else strlcat(part_chunk, "other</td>", sizeof(part_chunk));
 			
-			if(np->subtype >= ESP_PARTITION_SUBTYPE_APP_OTA_MIN && np->subtype <= ESP_PARTITION_SUBTYPE_APP_OTA_MAX)
+			// partition subtype
+			if(np->type == ESP_PARTITION_TYPE_APP)
 				{
-				sprintf(btmp, "%d</td>", np->subtype - ESP_PARTITION_SUBTYPE_APP_OTA_MIN);
-				strlcat(part_chunk, "<td>ota_", sizeof(part_chunk));
-				strlcat(part_chunk, btmp, sizeof(part_chunk));
+				if(np->subtype >= ESP_PARTITION_SUBTYPE_APP_OTA_MIN && np->subtype <= ESP_PARTITION_SUBTYPE_APP_OTA_MAX)
+					{
+					sprintf(btmp, "%d</td>", np->subtype - ESP_PARTITION_SUBTYPE_APP_OTA_MIN);
+					strlcat(part_chunk, "<td>ota_", sizeof(part_chunk));
+					strlcat(part_chunk, btmp, sizeof(part_chunk));
+					}
+				else if(np->subtype == ESP_PARTITION_SUBTYPE_APP_FACTORY){strlcat(part_chunk, "<td>FACTORY</td>", sizeof(part_chunk));}
+				else strlcat(part_chunk, "<td>other</td>", sizeof(part_chunk));
 				}
-			else if(np->subtype == ESP_PARTITION_SUBTYPE_DATA_OTA)strlcat(part_chunk, "<td>OTA</td>", sizeof(part_chunk));
-			else if(np->subtype == ESP_PARTITION_SUBTYPE_APP_FACTORY){strlcat(part_chunk, "<td>factory</td>", sizeof(part_chunk));}
-			else if(np->subtype == ESP_PARTITION_SUBTYPE_DATA_PHY)strlcat(part_chunk, "<td>PHY</td>", sizeof(part_chunk));
-			else if(np->subtype == ESP_PARTITION_SUBTYPE_DATA_NVS){strlcat(part_chunk, "<td>NVS</td>", sizeof(part_chunk)); }
-			else if(np->subtype == ESP_PARTITION_SUBTYPE_DATA_COREDUMP){strlcat(part_chunk, "<td>COREDUMP</td>", sizeof(part_chunk));}
-			else if(np->subtype == ESP_PARTITION_SUBTYPE_DATA_FAT){strlcat(part_chunk, "<td>FAT</td>", sizeof(part_chunk));;}
-			else if(np->subtype == ESP_PARTITION_SUBTYPE_DATA_SPIFFS){strlcat(part_chunk, "<td>SPIFFS</td>", sizeof(part_chunk));}
-			else if(np->subtype == ESP_PARTITION_SUBTYPE_DATA_LITTLEFS){strlcat(part_chunk, "<td>LITTLEFS</td>", sizeof(part_chunk));}
-			else strlcat(part_chunk, "other</td>", sizeof(part_chunk));
+			else
+				{
+				if(np->subtype == ESP_PARTITION_SUBTYPE_DATA_OTA)strlcat(part_chunk, "<td>OTA</td>", sizeof(part_chunk));
+				else if(np->subtype == ESP_PARTITION_SUBTYPE_DATA_PHY)strlcat(part_chunk, "<td>PHY</td>", sizeof(part_chunk));
+				else if(np->subtype == ESP_PARTITION_SUBTYPE_DATA_NVS){strlcat(part_chunk, "<td>NVS</td>", sizeof(part_chunk)); }
+				else if(np->subtype == ESP_PARTITION_SUBTYPE_DATA_COREDUMP){strlcat(part_chunk, "<td>COREDUMP</td>", sizeof(part_chunk));}
+				else if(np->subtype == ESP_PARTITION_SUBTYPE_DATA_FAT){strlcat(part_chunk, "<td>FAT</td>", sizeof(part_chunk));;}
+				else if(np->subtype == ESP_PARTITION_SUBTYPE_DATA_SPIFFS){strlcat(part_chunk, "<td>SPIFFS</td>", sizeof(part_chunk));}
+				else if(np->subtype == ESP_PARTITION_SUBTYPE_DATA_LITTLEFS){strlcat(part_chunk, "<td>LITTLEFS</td>", sizeof(part_chunk));}
+				else strlcat(part_chunk, "other</td>", sizeof(part_chunk));
+				}
 			if(upd && npart < MAX_UPDPART)
 				{
 				strcpy(pTable[npart].name, np->label);

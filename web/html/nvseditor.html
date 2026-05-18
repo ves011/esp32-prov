@@ -93,6 +93,18 @@ tr {border-bottom: 1px solid black;}
                     <td id="sta_ip">not connected</td>
                 </tr>
                 <tr style="border: none;">
+                    <td><b>STA SSID</b></td>
+                    <td id="sta_ssid">not connected</td>
+                </tr>
+                <tr style="border: none;">
+                    <td><b>STA RSSI</b></td>
+                    <td id="sta_rssi">not connected</td>
+                </tr>
+                <tr style="border: none;">
+                    <td><b>Web socket</b></td>
+                    <td id="websock">not connected</td>
+                </tr>
+                <tr style="border: none;">
                     <td><b>Device time</b></td>
                     <td id="devtime">2026-05-14 21:18:44</td>
                 </tr>
@@ -100,7 +112,7 @@ tr {border-bottom: 1px solid black;}
                     <td></td>
                     <td><button onclick="syncTime()">Sync Time</button></td>
                 </tr>
-            </table>
+		    </table>
         </div>
         <div style="margin-top: 50px;width: 800px;">
             <h3 style="font-size: 16px;">Create new key/value pair</h3>
@@ -184,7 +196,7 @@ e1 e2
             <button id="dump" onclick="dump('0_0')">Dump to...</button>&nbsp;&nbsp;&nbsp;
             <button id="upload" type="button" onclick="document.getElementById('f_0_0').click()">Update from...</button>
             <label id="u_0_0"></label>
-            <input id="f_0_0" type="file" onchange="loadf('0_0')" style="display:none;">
+            <input id="f_0_0" type="file" onchange="loadf('0_0', event)" style="display:none;">
         </td>
         <td><input class="sel2del" type="checkbox" name="ns_0" id="sd_0_0"></td>
     </tr>
@@ -196,15 +208,15 @@ e1 e2
         <td><input class = "ued" type="text" id="0_1" value="66665555"></td>
         <td><input class="sel2del" type="checkbox" name="ns1" id="[0][1]-sel"></td>
     </tr>
-    <tr class="ns1" style="display: none;">
+    <tr class="ns_0" style="display: none;">
         <td></td>
         <td>key3</td>
-        <td id="[0][2]-type" name="33">NVS_TYPE_STR</td>
-        <td id="[0][2]-len">19</td>
+        <td id="t_0_2" name="33">NVS_TYPE_STR</td>
+        <td id="l_0_2">19</td>
         <td>
-            <textarea class = "sed" id="[0][2]" rows="1" style="width: 673px; resize: vertical;">acesta este un text</textarea>
+            <textarea class = "sed" id="0_2" rows="1" style="width: 673px; resize: vertical;">acesta este un text</textarea>
         </td>
-        <td><input class="sel2del" type="checkbox" name="ns_0" id="sd_0_1"></td>
+        <td><input class="sel2del" type="checkbox" name="ns_0" id="sd_0_2"></td>
     </tr>
     <tr class="strong">
         <td class="shsign"><a id = "ns2" style="text-decoration: none;" href="#" onclick="showhide('ns2')">+</a></td>

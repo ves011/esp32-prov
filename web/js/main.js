@@ -225,11 +225,11 @@ async function parseEsp32Firmware(file)
     const info =
         {
         secure_version : new DataView(buf, pos + 4, 4).getUint32(0, true),
-        version : readString(8, 32),
-        project_name : readString(40, 32),
-        compile_time : readString(72, 16),
-        compile_date : readString(88, 16),
-        idf_version : readString(104, 32)
+        version : readString(16, 32),
+        project_name : readString(48, 32),
+        compile_time : readString(80, 16),
+        compile_date : readString(96, 16),
+        idf_version : readString(112, 32)
         };
     return info;
     }
@@ -250,6 +250,8 @@ function pageload()
 		try
 			{
 			const info = await parseEsp32Firmware(e.target.files[0]);
+			document.getElementById("verstr").innerHTML = "Version: " + info.version;
+			document.getElementById("buildstr").innerHTML = "Build time: " + info.compile_date + " " + info.compile_time;
 			console.log(info);
 			}
 		catch(err) {console.error(err);}

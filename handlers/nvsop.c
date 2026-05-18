@@ -342,6 +342,8 @@ int init_update_key(int idxns, int idxkey, int ktype, size_t upd_len, errrep_t *
 			rcv_keyval[i].recvb = b;
 			rcv_keyval[i].rcvlen = 0;
 			rcv_keyval[i].type = ktype;
+			if(ktype == NVS_TYPE_STR)
+				rcv_keyval[i].len --;
 			ret = ESP_OK;
 			}
 		else

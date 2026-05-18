@@ -44,7 +44,7 @@ void app_main(void)
 	//spiffs_storage_check();
 	//rw_dev_config(PARAM_READ);
 	get_nvs_conf();
-	initialise_wifi();
+	initialise_wifi(false);
 	esp_console_register_help_command();
 	register_system();
 	register_wifi();
@@ -56,8 +56,8 @@ void app_main(void)
 
 	//int ret = esp_vfs_spiffs_unregister("user");
 	//ESP_LOGI(TAG, "spiffs unregister: %d", ret);
-
-	wifi_join(NULL, NULL, JOIN_TIMEOUT_MS);
+	//if(strlen(dev_conf.nvs80211.sta_ssid))
+		wifi_join(NULL, NULL, JOIN_TIMEOUT_MS, true);
 	sync_NTP_time();
 
 #ifdef WITH_CONSOLE

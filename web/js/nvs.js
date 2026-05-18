@@ -16,6 +16,26 @@ const NVS_TYPE_BLOB  = 0x42;  /*!< Type blob */
 
 const NVSK_DOWNLOAD	    = "/keydump/";
 
+function unixToLocal(ts)
+	{
+    const d = new Date(ts * 1000);
+
+    const yyyy = d.getFullYear();
+    const mm   = String(d.getMonth() + 1).padStart(2, "0");
+    const dd   = String(d.getDate()).padStart(2, "0");
+
+    const hh   = String(d.getHours()).padStart(2, "0");
+    const min  = String(d.getMinutes()).padStart(2, "0");
+	const sec  = String(d.getSeconds()).padStart(2, "0");
+
+    return `${yyyy}-${mm}-${dd} ${hh}:${min}`;
+	}
+function ws_open()
+	{
+	console.log("CONNECTED"); 
+	c_connected = true;
+	document.getElementById("websock").innerHTML = "connected";
+	}
 function ws_send(msg)
 	{
 	if(websocket.readyState == WebSocket.OPEN)
@@ -56,6 +76,11 @@ function ws_receive(msg)
             else
                 alert("Update key request error: " + parsed.msg.params[2] + " - " + parsed.msg.params[3]);
             }
+        else if(parsed.msg.params[0] == CMD_UPDATEKEYVAL)
+            {
+            if(parsed.msg.params[2] != "0")
+                alert("Update key error: " + parsed.msg.params[2] + " - " + parsed.msg.params[3]);
+            }
         }
     else if (parsed.msg.command == URC_STATUS)
         {
@@ -71,6 +96,19 @@ function ws_receive(msg)
             max_blob_size = Number(params[2]);
             }
         }
+    else if(parsed.msg.command == URC_DEVINFO)
+		{
+		if(parsed.msg.params[0] == PAR_DEVTIME)
+			document.getElementById("devtime").innerHTML = unixToLocal(parsed.msg.params[1]);
+		if(parsed.msg.params[0] == PAR_STAIP)
+			document.getElementById("sta_ip").innerHTML = parsed.msg.params[1];
+		if(parsed.msg.params[0] == PAR_APIP)
+			document.getElementById("ap_ip").innerHTML = parsed.msg.params[1];
+		if(parsed.msg.params[0] == PAR_STASSID)
+			document.getElementById("sta_ssid").innerHTML = parsed.msg.params[1];
+		if(parsed.msg.params[0] == PAR_STARSSI)
+			document.getElementById("sta_rssi").innerHTML = parsed.msg.params[1];
+		}
 	}
 function send_key_chunks(msg)
     {
@@ -80,7 +118,7 @@ function send_key_chunks(msg)
     if(type == NVS_TYPE_STR) // NVS_TYPE_STR)
         {
         var b = document.getElementById(msg.params[1]).value;
-        while (pos < len)
+        while (pos < len - 1) // -1 is here because the NVS_TYPE_STR length includes 0 terminated char
             {
             if(pos + chunk_size < b.length)
                 l = chunk_size;
@@ -151,6 +189,7 @@ function keysDecHandler(event)
     {
     const e = event.target;
     const typed = String(event.data);
+    var upd = false;
     if(e.classList.contains("ued") ||
         e.classList.contains("ied") ||
             e.classList.contains("sed"))
@@ -158,27 +197,33 @@ function keysDecHandler(event)
         var start = e.selectionStart;
         var upd = false;
         if(e.className == "sed")
-            {
-            if(e.id == "phv")
-                document.getElementById("nk_len").value = e.value.length;
-            else
-                upd = true;
-            }
-        else if((event.inputType == "deleteContentBackward" || event.inputType == "deleteContentForward") ||
-            ('0123456789'.indexOf(typed) >= 0))
             upd = true;
-        else if(e.className == "ied")
+        else
             {
-            if(typed == "-" && start == 0 && target.value.indexOf("-") == -1)
+            if((event.inputType == "deleteContentBackward" || 
+                event.inputType == "deleteContentForward") ||
+                ('0123456789'.indexOf(typed) >= 0))
+                {
                 upd = true;
+                }
+            if(e.className == "ied")
+                {
+                if(typed == "-" && start == 0 && target.value.indexOf("-") == -1)
+                    upd = true;
+                }
             }
-        if(upd)
+        if(!upd)
+            {
+            event.stopPropagation(); 
+            event.preventDefault();
+            }
+
+        if(upd && e.id != "phv")
             {
             e.style.color = "rgb(255, 0, 0)";
             document.getElementById("commit_ch").disabled = false; 
             pushupdate(e.id);     
             }
-        else {event.stopPropagation(); event.preventDefault();}
         }
     }
 function update_len(event)
@@ -187,7 +232,9 @@ function update_len(event)
         {
         var v = Number(document.getElementsByName("types")[0].value);
         if(Number(v) == NVS_TYPE_STR)
-            document.getElementById("nk_len").value = document.getElementById(event.target.id).value.length;
+            document.getElementById("nk_len").value = document.getElementById(event.target.id).value.length + 1;
+        if(Number(v) == NVS_TYPE_BLOB)
+            document.getElementById("nk_len").value = document.getElementById(event.target.id).value.length + 1;
         }
     else
         {
@@ -199,41 +246,7 @@ function update_len(event)
             }
         }
     }
-function pageload()
-    {
-    document.addEventListener("beforeinput", keysDecHandler);
-    document.addEventListener("input", update_len);
-    var inp = document.getElementsByClassName("hed");
-    for (i = 0; i < inp.length; i++)
-        {
-        inp[i].blobData = parseHexText(inp[i].value);
-        inp[i].addEventListener("keydown", hexKeyDown);
-        inp[i].addEventListener("paste", hexPaste);
-        inp[i].spellcheck = false;
-        inp[i].wrap = "off";
-        }
-    inp = document.querySelectorAll(".sel2del, .sel2delns");
-    for (i = 0; i < inp.length; i++)
-        {
-        inp[i].addEventListener("click", setSel);
-        }
 
-    const wsUri = window.location.origin + "/ws";
-	websocket = new WebSocket(wsUri);
-	websocket.addEventListener("open", () => {console.log("CONNECTED"); c_connected = true;});
-	websocket.addEventListener("close", (event) => {console.log("DISCONNECTED: " + event.data); c_connected = false;});
-	websocket.onmessage = (msg) => {ws_receive(msg);};
-    window.addEventListener('beforeunload', function (event) 
-        {
-        if(document.getElementById("commit_ch").disabled == false)
-            {
-            event.preventDefault();
-            event.returnValue = "Are you sure you want to leave this page?"; //anyway this prompt is ignored
-            }
-        else
-            return;
-        });
-    }
 function setSel(e)
     {
     const name = this.name;
@@ -328,8 +341,9 @@ function loadf(tarea, event)
                 // newline every 16 bytes
                 if((i + 1) % 16 === 0)
                     out += "\n";
-            }
+                }
             textarea.value = out.trimEnd();
+            textarea.blobData = bytes;
 
             // auto-adjust rows
             //textarea.rows =
@@ -370,6 +384,8 @@ function seltypes()
             l.value = 4; l.readOnly = true; break;
         case 8: case 24:
             l.value = 8; l.readOnly = true; break;
+        case 33:
+            l.value = 1; l.readOnly = false; break;
         default:
             l.value = 0; l.readOnly = false; break;
         }
@@ -455,4 +471,51 @@ function dump(id)
     a.href = location.origin + NVSK_DOWNLOAD + encodeURIComponent(id);
     a.download = name + ".bin";
     a.click();
+    }
+function syncTime()
+	{
+	var msg = createMessage(CMD_SYNCTIME, [], payload = null);
+	var ws_string = buildAppProto(msg);
+	ws_send(ws_string);
+	}
+
+function pageload()
+    {
+    document.addEventListener("beforeinput", keysDecHandler);
+    document.addEventListener("input", update_len);
+    var inp = document.getElementsByClassName("hed");
+    for (i = 0; i < inp.length; i++)
+        {
+        inp[i].blobData = parseHexText(inp[i].value);
+        inp[i].addEventListener("keydown", hexKeyDown);
+        inp[i].addEventListener("paste", hexPaste);
+        inp[i].spellcheck = false;
+        inp[i].wrap = "off";
+        }
+    inp = document.querySelectorAll(".sel2del, .sel2delns");
+    for (i = 0; i < inp.length; i++)
+        {
+        inp[i].addEventListener("click", setSel);
+        }
+
+    const wsUri = window.location.origin + "/ws";
+	websocket = new WebSocket(wsUri);
+    websocket.addEventListener("open", ws_open());// => {console.log("CONNECTED"); c_connected = true;});
+	websocket.addEventListener("close", (event) => 
+		{
+		console.log("DISCONNECTED: " + event.data); 
+		c_connected = false;
+		document.getElementById("websock").innerHTML = "not connected";
+		});
+	websocket.onmessage = (msg) => {ws_receive(msg);};
+    window.addEventListener('beforeunload', function (event) 
+        {
+        if(document.getElementById("commit_ch").disabled == false)
+            {
+            event.preventDefault();
+            event.returnValue = "Are you sure you want to leave this page?"; //anyway this prompt is ignored
+            }
+        else
+            return;
+        });
     }
