@@ -282,6 +282,7 @@ int update_key_chunk(int idxns, int idxkey, int offset, int len, void *chunk, er
 			memset(&rcv_keyval[i], 0, sizeof(rcv_keyval_t));
 			rcv_keyval[i].state = UPDATE_COMPLETE;
 			}
+			
 		else if(rcv_keyval[i].rcvlen > rcv_keyval[i].len)
 			{
 			rcv_keyval[i].state = UPDATE_COMPLETE;
