@@ -36,8 +36,6 @@ ptable_t pTable[MAX_UPDPART];
 
 esp_err_t part_get_handler(const uint8_t *start, const uint8_t *end, httpd_req_t *req)
 	{
-	//char buf[32];
-	//char filepath[512];
 	char *pchar = NULL, *last_pchar;
     
 	if(restart_in_progress == 1)
@@ -116,7 +114,7 @@ esp_err_t part_update_handler(const uint8_t *start, const uint8_t *end, httpd_re
 	
 void enum_partitions(httpd_req_t *req)
 	{
-	char btmp[80], cversion[32], dtime[40];
+	char btmp[80], cversion[32], dtime[40], projname[40];
 	char part_chunk[1024];
 	bool runp, upd;
 	esp_app_desc_t pdesc;
@@ -139,9 +137,11 @@ void enum_partitions(httpd_req_t *req)
 				strcpy(dtime, pdesc.date);
 				strcat(dtime, " ");
 				strcat(dtime, pdesc.time);
+				strcpy(projname, pdesc.project_name);
 				}
 			else 
 				{
+				strcpy(projname, "N/A");
 				strcpy(cversion, "N/A");
 				strcpy(dtime, "N/A");
 				}
@@ -235,6 +235,9 @@ void enum_partitions(httpd_req_t *req)
 			strlcat(part_chunk, btmp, sizeof(part_chunk));
 			
 			sprintf(btmp, "<td style=\"text-align:right;\">0x%X</td>\n", (unsigned int)np->size);
+			strlcat(part_chunk, btmp, sizeof(part_chunk));
+			
+			sprintf(btmp, "<td style=\"text-align:left;\">%s</td>\n", projname);
 			strlcat(part_chunk, btmp, sizeof(part_chunk));
 			
 			sprintf(btmp, "<td style=\"text-align:left;\">%s</td>\n", cversion);

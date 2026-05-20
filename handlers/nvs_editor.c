@@ -264,7 +264,7 @@ esp_err_t nvs_get_handler(const uint8_t *start, const uint8_t *end, httpd_req_t 
 		}
 	strcpy(buf, "</table></div></body></html>");
 	httpd_resp_send_chunk(req, buf, strlen(buf));
-    //httpd_resp_send_chunk(req, last_pchar, nvs_page_size);
+
     //end of page
 	httpd_resp_send_chunk(req, NULL, 0);
 	free(buf);
@@ -320,7 +320,6 @@ static void insert_input_field(httpd_req_t *req, keydef_t *kd)
 		{
 		snprintf(buf, BUFSIZE, "<td><textarea id=\"%d_%d\" class=\"sed\" style=\"width: 675px;resize: vertical;\" rows=\"1\">", kd->ns_idx, kd->key_idx);
 		httpd_resp_send_chunk(req, buf, strlen(buf));
-		//sprintf(bstring, "<td><textarea id=\"[%d][%d]\" style=\"width: 675px;resize: vertical;\" rows=\"1\">", i, j);
 		if(nvs_get_str(kd->nvsh, kd->name, bstring, &kd->len) == ESP_OK)
 			{
 			buf[0] = 0;

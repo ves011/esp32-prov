@@ -118,8 +118,6 @@ function ws_receive(msg)
 function selFile(event)
 	{
 	document.getElementById("ustatus").innerHTML = "";
-	//try {const info = await parseEsp32Firmware(event.target.files[0]);}
-	//catch(err) {console.error(err);}
 	}
 function upload() 
 	{
@@ -250,6 +248,7 @@ function pageload()
 		try
 			{
 			const info = await parseEsp32Firmware(e.target.files[0]);
+			document.getElementById("projstr").innerHTML = "Project name: " + info.project_name;
 			document.getElementById("verstr").innerHTML = "Version: " + info.version;
 			document.getElementById("buildstr").innerHTML = "Build time: " + info.compile_date + " " + info.compile_time;
 			console.log(info);

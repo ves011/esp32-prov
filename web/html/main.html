@@ -64,11 +64,12 @@ html.wait, html.wait * { cursor: wait !important; }
 	<h6>(b) - boot partition<br>(*) - running partition</h6>
 	<table class="alternate" style="text-align:left;">
 		<tr>
-    		<th>name</th>
-    		<th style="text-align:center;padding-left: 20px;padding-right: 20px;">type</th>
+    		<th style="text-align:center;">name</th>
+    		<th style="text-align:center;">type</th>
     		<th style="text-align:center;">subtype</th>
     		<th style="text-align:center;">offset</th>
     		<th style="text-align:center;">size</th>
+			<th style="text-align:center;">project name</th>
 			<th style="text-align:center;">version</th>
 			<th style="text-align:center;">build date</th>
     	</tr>
@@ -110,6 +111,11 @@ html.wait, html.wait * { cursor: wait !important; }
 			<td colspan="2"><input id="newfile" type="file" style="width:100%;" onchange="selFile(event)"></td>
 			<td id="ustatus"></td>
   		</tr>
+		<tr>
+			<td></td>
+			<td></td>
+			<td id = "projstr" style="font-size: 12px; text-align: end;">Project name: N/A</td>
+		</tr>
 		<tr>
 			<td></td>
 			<td></td>

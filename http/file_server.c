@@ -63,7 +63,7 @@ extern const uint8_t _binary_proto_js_end[]				asm("_binary_appprotolegacy_js_en
 extern const uint8_t _binary_favicon_ico_start[] 		asm("_binary_favicon_ico_start");
 extern const uint8_t _binary_favicon_ico_end[]	 		asm("_binary_favicon_ico_end");
 /*
- * because the way URI is parsed in generic_handler(), this rule is critical
+ * because the way URI is parsed in generic_handler(), the rule below is critical:
  * !!!the URI string in the assets SHALL NOT be part or included of any other URI string!!!  
 */
 static const asset_t assets[] = 

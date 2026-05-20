@@ -5,7 +5,6 @@
  *      Author: viorel_serbu
  */
 
-#include "../handlers/nvsop.h"
 
 #include <esp_wifi.h>
 #include <esp_event.h>
@@ -18,9 +17,8 @@
 #include <spi_flash_mmap.h>
 #include "esp_err.h"
 #include <nvs.h>
-
+#include "nvsop.h"
 #include "nvs_editor.h"
-#include "part_editor.h"
 #include "ws_client_handler.h"
 
 namespace_t *namespace = NULL;

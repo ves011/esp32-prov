@@ -55,7 +55,6 @@ void register_nvsop(void);
 int get_nvs_entries(char *pName);
 int create_nvs_key(char *pName, char *ns, char *key, int type, int len, char *phv);
 int recv_update(int idn, int idk, int len, int nrc);
-//void nvs_update_task(void *pvParameters);
 int nvs_set_val(int type, nvs_handle_t handle, char *name, int len, void *val);
 int nvs_update_key(int type, int nsidx, int keyidx, int len, void *val);
 int erase_nvs_key(int nsID, int keyID);

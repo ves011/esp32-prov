@@ -15,11 +15,13 @@ idf_component_register(
 		"../../esp32_common/ws_mqtt_proto/app_proto.c"
 		"../../esp32_common/utils/utils.c"
 		"../../esp32_common/cmds/cmd_wifi.c"
+		# optional component
 		"../../esp32_common/cmds/cmd_system.c"
+		
 		"../../esp32_common/tcp/tcp_log.c"
 		"../../esp32_common/tcp/ntp_sync.c"
     INCLUDE_DIRS
-	    "."										# optional, add here public include directories
+	    "."
     	"../../esp32_common"
 		"../../esp32_common/utils"
 		"../../esp32_common/cmds"
