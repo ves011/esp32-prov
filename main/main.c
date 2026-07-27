@@ -49,7 +49,7 @@ void app_main(void)
 	/* Set local timezone (used by UI and logging) */
 	setenv("TZ","EET-2EEST,M3.4.0/03,M10.4.0/04",1);
 	start_file_server(BASE_PATH);
-	wifi_join(NULL, NULL, JOIN_TIMEOUT_MS, true);
+	wifi_join(NULL, NULL, JOIN_TIMEOUT_MS, false);
 	sync_NTP_time();
 
 #ifdef WITH_CONSOLE

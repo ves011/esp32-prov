@@ -77,7 +77,6 @@ static const asset_t assets[] =
     { "/favicon.ico",			_binary_favicon_ico_start, 		_binary_favicon_ico_end,	"image/x-icon", 			simple_get_handler},
     { "/upload/",				NULL,							NULL,						"text/html", 				flashing_post_handler},
     { "/download/",				NULL,							NULL,						"text/html", 				dump_get_handler},
-    { "/a",						NULL,							NULL,						"text/html", 				part_update_handler},
     { "/nvs",					_binary_nvs_page_start,			_binary_nvs_page_end,		"text/html", 				nvs_get_handler},
     { "/keydump/",				NULL,							NULL,						"application/octet-stream",	nvskey_get_handler},
 	};

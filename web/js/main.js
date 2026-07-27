@@ -31,15 +31,7 @@ function erase()
 	var ws_string = buildAppProto(msg);
 	ws_send(ws_string);
 	}
-function update(fName) 
-	{
-	if(fName == "reboot")
-		{
-		document.getElementById(fName).method = "POST";
-		document.getElementById(fName)[0].value = "1";
-		document.getElementById(fName).action = "/a";
-		}
-	}
+
 function esp_reboot()
 	{
 	var msg = createMessage(CMD_REBOOT, [], payload = null);

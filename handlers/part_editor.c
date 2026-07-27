@@ -73,45 +73,6 @@ esp_err_t part_get_handler(const uint8_t *start, const uint8_t *end, httpd_req_t
     return ESP_OK;
 	}
 
-esp_err_t part_update_handler(const uint8_t *start, const uint8_t *end, httpd_req_t *req)
-	{
-	ESP_LOGI(TAG, "root_update_handler %s", req->uri);
-	char*  buf = malloc(req->content_len + 2);
-	if(buf)
-		{
-		size_t off = 0;
-		while (off < req->content_len) 
-			{
-			/* Read data received in the request */
-			int ret = httpd_req_recv(req, buf + off, req->content_len - off);
-			if (ret <= 0) 
-				{
-				if (ret == HTTPD_SOCK_ERR_TIMEOUT)
-					httpd_resp_send_408(req);
-				free (buf);
-				return ESP_FAIL;
-				}
-			off += ret;
-			ESP_LOGI(TAG, "root_post_handler recv length %d", ret);
-			}
-		buf[off] = '&';
-		buf[off + 1] = '\0';
-		ESP_LOGI(TAG, "root_post_handler buf=[%s]", buf);
-		if(strstr(buf, REBOOTFORM"=1"))
-			{
-			ESP_LOGI(TAG, "restart triggered");
-			restart_in_progress = 1;
-			}
-		httpd_resp_set_status(req, "303 See Other");
-	    httpd_resp_set_hdr(req, "Location", "/");
-	    httpd_resp_sendstr(req, "Update success");
-		return ESP_OK;
-		}
-	else
-		httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Payload too large");
-	return ESP_FAIL;
-	}
-	
 void enum_partitions(httpd_req_t *req)
 	{
 	char btmp[80], cversion[32], dtime[40], projname[40];

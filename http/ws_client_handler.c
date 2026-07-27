@@ -11,7 +11,7 @@
 #include <nvs_flash.h>
 #include <string.h>
 #include <sys/param.h>
-#include "cmd_wifi.h"
+//#include "cmd_wifi.h"
 #include "esp_err.h"
 #include "esp_wifi.h"
 #include <esp_wifi_types_generic.h>
@@ -20,7 +20,8 @@
 #include "app_proto.h"
 #include "ws_client_handler.h"
 #include "../handlers/nvsop.h"
-#include "lwip/netif.h"
+//#include "lwip/netif.h"
+#include "common_defines.h"
 #include "part_editor.h"
 #include "protocoldef.h"
 
