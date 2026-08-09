@@ -240,9 +240,9 @@ function pageload()
 		try
 			{
 			const info = await parseEsp32Firmware(e.target.files[0]);
-			document.getElementById("projstr").innerHTML = "Project name: " + info.project_name;
-			document.getElementById("verstr").innerHTML = "Version: " + info.version;
-			document.getElementById("buildstr").innerHTML = "Build time: " + info.compile_date + " " + info.compile_time;
+			document.getElementById("projstr").innerHTML = info.project_name;
+			document.getElementById("verstr").innerHTML = info.version;
+			document.getElementById("buildstr").innerHTML = info.compile_date + " " + info.compile_time;
 			console.log(info);
 			}
 		catch(err) {console.error(err);}
