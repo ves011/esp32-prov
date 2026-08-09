@@ -42,6 +42,7 @@ esp_err_t part_get_handler(const uint8_t *start, const uint8_t *end, httpd_req_t
 		my_esp_restart();
 
 	ESP_LOGI(TAG, "uri: \"%s\"", req->uri);
+	
     last_pchar = (char *)start;
     pchar = strstr((char *)start, "id=\"devName\"");
 	pchar = strstr(last_pchar, INSERTPARTITIONS);

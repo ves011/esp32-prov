@@ -32,7 +32,7 @@
 #define FILE_PATH_MAX (ESP_VFS_PATH_MAX + CONFIG_SPIFFS_OBJ_NAME_LEN)
 
 httpd_handle_t w_server;
-int wsfd;
+int wsfd = -1;
 struct file_server_data server_data;
 
 static const char *TAG = "file_server";
@@ -210,15 +210,17 @@ esp_err_t ws_handler(httpd_req_t *req)
          			req->handle,
                  	httpd_req_to_sockfd(req), 
                  	httpd_ws_get_fd_info(req->handle, httpd_req_to_sockfd(req)));
-        if(httpd_ws_get_fd_info(req->handle, httpd_req_to_sockfd(req)) == 2)
+        if(httpd_ws_get_fd_info(req->handle, httpd_req_to_sockfd(req)) == HTTPD_WS_CLIENT_WEBSOCKET)
         	{
 			int fd = httpd_req_to_sockfd(req);
-			if(wsfd != 0 && wsfd != fd)
+			if(wsfd != -1 && wsfd != fd)
 				{
-				ESP_LOGI(TAG, "Rejecting second client");
-				return ESP_FAIL;
+				ESP_LOGI(TAG, "new client fd %d replacing old client fd %d", fd, wsfd);
+				httpd_sess_trigger_close(req->handle, wsfd);
+			    wsfd = -1;
 				}
-        	wsfd = httpd_req_to_sockfd(req);
+        	wsfd = fd;
+        	ESP_LOGI(TAG, "new client connected fd: %d", wsfd);
         	app_proto_t msgproto;
         	memset(&msg, 0, sizeof(wsmsg_t));
 	    	memset(&msgproto, 0, sizeof(app_proto_t));
@@ -227,6 +229,7 @@ esp_err_t ws_handler(httpd_req_t *req)
 		    msgproto.payload_len = 0;
 		    msgproto.command = URC_DEVINFO;
 		    msgproto.nparams = 2;
+		    msg.fd = wsfd;
 		    
 		    msgproto.params[0] = PAR_DEVTIME;
 		    msgproto.params[1] = "";
@@ -313,7 +316,7 @@ esp_err_t ws_handler(httpd_req_t *req)
             ESP_LOGI(TAG, "websocket closed %d / %d", wsfd, fd);
             if (wsfd == fd)
             	{
-        		wsfd = 0;
+        		wsfd = -1;
         		reset_wifi_state();
         		}
         	}
@@ -330,3 +333,4 @@ esp_err_t ws_handler(httpd_req_t *req)
     free(buf);
     return ESP_OK;
 	}
+	

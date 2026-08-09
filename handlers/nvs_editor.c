@@ -123,7 +123,6 @@ esp_err_t nvs_get_handler(const uint8_t *start, const uint8_t *end, httpd_req_t 
 	nvs_handle_t nvsh;
 	int i, j, ret;
 	keydef_t keydef;
-	//extern char nvs_page_start[] asm("_binary_nvseditor_html_start");
 	
     ESP_LOGI(TAG, "uri: %s", req->uri);
 

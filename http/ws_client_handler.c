@@ -72,13 +72,13 @@ void send_ws_txtframe(char *msg)
     ws_pkt.payload = (uint8_t*)msg;
     ws_pkt.len = strlen(msg);
     ws_pkt.type = HTTPD_WS_TYPE_TEXT;
-    if(wsfd)
+    if(wsfd > 0)
     	{
     	ret = httpd_ws_send_frame_async(w_server, wsfd, &ws_pkt);
     	ESP_LOGI(TAG, "ws_send_frame_async: %d / %s", ret, msg);
     	}
     else
-    	ESP_LOGI(TAG, "ws_send_frame_async error: wsfd = 0");
+    	ESP_LOGI(TAG, "ws_send_frame_async error: wsfd = -1");
 	}
 /*	
 void send_binmsg(char *msg, int len)
