@@ -15,6 +15,8 @@
 #define WIFI_AP_ON					1
 #define MDNS						1
 
+#define FILESYSTEM	SPIFFS
+
 #define HOSTNAME			"OTA-dev"
 #define MDNSINSTANCE		"OTA-dev"
 #define MDNSINSTANCENAME	"OTA-dev"

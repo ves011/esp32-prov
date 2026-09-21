@@ -39,4 +39,26 @@ idf_component_register(
 		"../web/js/nvs.js"
 		"../web/js/hexed.js"
 		"../../esp32_common/ws_mqtt_proto/protocoldef.js"
+
+	REQUIRES 
+        console
+        esp_driver_uart
+        esp_timer
+        esp_ringbuf
+        app_update
+        spi_flash
+        nvs_flash
+        freertos
+        esp_netif
+        esp_wifi
+		esp_http_server
+		spiffs
+		esp_pm
+		esp_driver_gpio
+		)
+
+	target_compile_options(${COMPONENT_LIB} PRIVATE 
+		$<$<COMPILE_LANGUAGE:C>:-Wall>
+    	$<$<COMPILE_LANGUAGE:C>:-Wextra>
+    	$<$<COMPILE_LANGUAGE:C>:-Werror=implicit-function-declaration>
 		)

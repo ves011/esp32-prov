@@ -9,6 +9,7 @@
 #include <sys/unistd.h>
 #include <sys/stat.h>
 #include <dirent.h>
+#include <time.h>
 
 #include "app_proto.h"
 #include "esp_err.h"
@@ -18,6 +19,7 @@
 //#include "esp_spiffs.h"
 #include "esp_http_server.h"
 #include "freertos/idf_additions.h"
+#include "esp_timer.h"
 #include "cmd_wifi.h"
 #include "protocoldef.h"
 #include "ws_client_handler.h"
@@ -38,6 +40,7 @@ struct file_server_data server_data;
 static const char *TAG = "file_server";
 
 static esp_err_t simple_get_handler(const uint8_t *start, const uint8_t *end, httpd_req_t *req);
+static esp_err_t ws_on_connect(httpd_req_t *req);
 
 extern const uint8_t _binary_main_html_start[] 			asm("_binary_main_html_start");
 extern const uint8_t _binary_main_html_end[]			asm("_binary_main_html_end");
@@ -164,7 +167,8 @@ esp_err_t start_file_server(const char *base_path)
         .handler    = ws_handler,
         .user_ctx   = NULL,
         .is_websocket = true,
-        .handle_ws_control_frames = true
+        .handle_ws_control_frames = true,
+        .ws_post_handshake_cb = ws_on_connect
 		};
 	httpd_register_uri_handler(server, &ws);
 	
@@ -199,7 +203,44 @@ esp_err_t generic_handler(httpd_req_t *req)
     httpd_resp_send_404(req);
     return ESP_FAIL;
 	}
+static esp_err_t ws_on_connect(httpd_req_t *req)
+	{
+	wsmsg_t msg;
+    ESP_LOGI(TAG, "Handshake done, the new connection was opened");
+    int fd = httpd_req_to_sockfd(req);
+    if (wsfd != -1 && wsfd != fd)
+    	{
+        ESP_LOGI(TAG, "new client fd %d replacing old client fd %d", fd, wsfd);
+        httpd_sess_trigger_close(req->handle, wsfd);
+        wsfd = -1;
+    	}
 
+    wsfd = fd;
+    ESP_LOGI(TAG, "new client connected fd: %d", wsfd);
+
+    // send DEVINFO / WIFI messages...
+    app_proto_t msgproto;
+	memset(&msg, 0, sizeof(wsmsg_t));
+	memset(&msgproto, 0, sizeof(app_proto_t));
+	msgproto.version = PROTO_VERSION;
+    msgproto.hdr_fields = 7;
+    msgproto.payload_len = 0;
+    msgproto.command = URC_DEVINFO;
+    msgproto.nparams = 2;
+    msg.fd = wsfd;
+    
+    msgproto.params[0] = PAR_DEVTIME;
+    msgproto.params[1] = "";
+    if(!build_app_proto(msg.payload.binpayload, MAX_LEN_PROTO_MSG, &msgproto, &msg.len))
+		xQueueSend(ws_msg_queue, &msg, 0);
+	
+	msgproto.params[0] = PAR_WIFI;
+    msgproto.params[1] = "";
+    if(!build_app_proto(msg.payload.binpayload, MAX_LEN_PROTO_MSG, &msgproto, &msg.len))
+		xQueueSend(ws_msg_queue, &msg, 0);
+
+    return ESP_OK;
+	}
 esp_err_t ws_handler(httpd_req_t *req)
 	{
 	wsmsg_t msg;

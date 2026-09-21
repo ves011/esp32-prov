@@ -11,6 +11,7 @@
 #include <nvs_flash.h>
 #include <string.h>
 #include <sys/param.h>
+#include <time.h>
 //#include "cmd_wifi.h"
 #include "esp_err.h"
 #include "esp_wifi.h"

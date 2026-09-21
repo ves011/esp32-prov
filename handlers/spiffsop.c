@@ -6,7 +6,6 @@
  */
 
 #include "../handlers/spiffsop.h"
-#include "../handlers/spiffsop.h"
 
 #include <esp_wifi.h>
 #include <esp_event.h>
@@ -17,6 +16,7 @@
 #include <sys/param.h>
 #include <esp_log.h>
 #include <spi_flash_mmap.h>
+#include <time.h>
 #include "esp_err.h"
 #include <esp_http_server.h>
 #include <nvs.h>
@@ -34,7 +34,8 @@
 #include "cmd_wifi.h"
 //#include "utils.h"
 //#include "keep_alive.h"
-#include "sys/dirent.h"
+#include "dirent.h"
+#include "sys/types.h"
 #include "ws_client_handler.h"
 
 static char *TAG = "filesys";
@@ -50,7 +51,7 @@ static void free_list_file()
 	flist = NULL;
 	nfiles = 0;
 	}
-	
+
 int cmp_name(const void *f1, const void *f2)
 	{
 	return
