@@ -14,6 +14,7 @@ idf_component_register(
 		"../handlers/spiffsop.c"
 		"../../esp32_common/ws_mqtt_proto/app_proto.c"
 		"../../esp32_common/utils/utils.c"
+		"../../esp32_common/utils/crash_handler.c"
 		"../../esp32_common/cmds/cmd_wifi.c"
 		# optional component
 		"../../esp32_common/cmds/cmd_system.c"

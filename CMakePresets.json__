@@ -1,0 +1,32 @@
+{
+  "version": 3,
+  "cmakeMinimumRequired": {
+    "major": 3,
+    "minor": 21,
+    "patch": 0
+  },
+  "configurePresets": [
+    {
+      "name": "esp32s3-profile",
+      "displayName": "ESP32-S3 Profile",
+      "description": "Build for Xtensa ESP32-S3 architecture",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build_esp32s3",
+      "cacheVariables": {
+        "IDF_TARGET": "esp32s3",
+        "SDKCONFIG": "${sourceDir}/sdkconfig.esp32s3"
+      }
+    },
+    {
+      "name": "esp32c3-profile",
+      "displayName": "ESP32-C3 Profile",
+      "description": "Build for RISC-V ESP32-C3 architecture",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build_esp32c3",
+      "cacheVariables": {
+        "IDF_TARGET": "esp32c3",
+        "SDKCONFIG": "${sourceDir}/sdkconfig.esp32c3"
+      }
+    }
+  ]
+}

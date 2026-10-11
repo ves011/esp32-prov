@@ -1,3 +1,7 @@
 /build/
 /managed_components/
 /tmp/
+/build_esp32c3/
+/build_esp32s3/
+/${sourceDir}/
+/esp32_common

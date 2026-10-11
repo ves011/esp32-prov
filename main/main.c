@@ -14,6 +14,7 @@
 #include "cmd_system.h"
 #include "cmd_wifi.h"
 #include "file_server.h"
+#include "crash_handler.h"
 
 
 static const char *TAG = "OTA-main";
@@ -32,6 +33,7 @@ static void initialize_nvs(void)
 	
 void app_main(void)
 	{
+	getCrashInfo();
 	initialize_nvs();
 	get_nvs_conf();
 	initialise_wifi(false);

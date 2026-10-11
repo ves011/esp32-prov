@@ -39,7 +39,7 @@ esp_err_t part_get_handler(const uint8_t *start, const uint8_t *end, httpd_req_t
 	char *pchar = NULL, *last_pchar;
     
 	if(restart_in_progress == 1)
-		my_esp_restart();
+		esp_restart();
 
 	ESP_LOGI(TAG, "uri: \"%s\"", req->uri);
 	
