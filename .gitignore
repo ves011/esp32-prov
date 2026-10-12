@@ -5,3 +5,4 @@
 /build_esp32s3/
 /${sourceDir}/
 /esp32_common
+/sdkconfig.esp32c3.old

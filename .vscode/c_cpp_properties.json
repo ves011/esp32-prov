@@ -2,7 +2,7 @@
   "configurations": [
     {
       "name": "ESP-IDF",
-      "compileCommands": "${config:idf.buildPath}/compile_commands.json",
+      "compileCommands": "c:\\dev\\esp32\\esp32-prov\\build_esp32s3\\compile_commands.json",
       "intelliSenseMode": "gcc-x86",
       "includePath": [
         "${workspaceFolder}/**"

@@ -28,6 +28,9 @@
   ],
   "idf.customExtraVars": {
     "OPENOCD_SCRIPTS": "C:\\Users\\viore\\.espressif\\tools\\openocd-esp32\\v0.10.0-esp32-20190708/openocd-esp32/share/openocd/scripts",
-    "IDF_TARGET": "esp32s3"
-  }
+    "IDF_TARGET": "esp32c3"
+  },
+  "idf.openOcdConfigs": [
+    "board/esp32s3-builtin.cfg"
+  ]
 }

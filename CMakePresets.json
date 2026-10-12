@@ -14,7 +14,25 @@
       "binaryDir": "${sourceDir}/build_esp32s3",
       "cacheVariables": {
         "IDF_TARGET": "esp32s3",
-        "SDKCONFIG": "${sourceDir}/sdkconfig.esp32s3"
+        "SDKCONFIG": "${sourceDir}/sdkconfig.esp32s3",
+        "CMAKE_EXPORT_COMPILE_COMMANDS": "ON"
+      },
+      "vendor": {
+        "espressif/vscode-esp-idf": {
+          "schemaVersion": 1,
+          "settings": [
+            {
+              "type": "openOCD",
+              "value": {
+                "debugLevel": 2,
+                "configs": [
+                  "board/esp32s3-builtin.cfg"
+                ],
+                "args": []
+              }
+            }
+          ]
+        }
       }
     },
     {
@@ -25,7 +43,8 @@
       "binaryDir": "${sourceDir}/build_esp32c3",
       "cacheVariables": {
         "IDF_TARGET": "esp32c3",
-        "SDKCONFIG": "${sourceDir}/sdkconfig.esp32c3"
+        "SDKCONFIG": "${sourceDir}/sdkconfig.esp32c3",
+        "CMAKE_EXPORT_COMPILE_COMMANDS": "ON"
       }
     }
   ]
