@@ -105,6 +105,10 @@ function ws_receive(msg)
 			document.getElementById("sta_ssid").innerHTML = parsed.msg.params[1];
 		if(parsed.msg.params[0] == PAR_STARSSI)
 			document.getElementById("sta_rssi").innerHTML = parsed.msg.params[1];
+		if(parsed.msg.params[0] == PAR_DEVID)
+			document.getElementById("dev_id").innerHTML = parsed.msg.params[1];
+		if(parsed.msg.params[0] == PAR_APSSID)
+			document.getElementById("ap_ssid").innerHTML = parsed.msg.params[1];
 		}
 	}
 function selFile(event)

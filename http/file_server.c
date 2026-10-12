@@ -239,6 +239,16 @@ static esp_err_t ws_on_connect(httpd_req_t *req)
     if(!build_app_proto(msg.payload.binpayload, MAX_LEN_PROTO_MSG, &msgproto, &msg.len))
 		xQueueSend(ws_msg_queue, &msg, 0);
 
+	msgproto.params[0] = PAR_DEVID;
+    msgproto.params[1] = "";
+    if(!build_app_proto(msg.payload.binpayload, MAX_LEN_PROTO_MSG, &msgproto, &msg.len))
+		xQueueSend(ws_msg_queue, &msg, 0);
+
+	msgproto.params[0] = PAR_APSSID;
+    msgproto.params[1] = "";
+    if(!build_app_proto(msg.payload.binpayload, MAX_LEN_PROTO_MSG, &msgproto, &msg.len))
+		xQueueSend(ws_msg_queue, &msg, 0);
+
     return ESP_OK;
 	}
 esp_err_t ws_handler(httpd_req_t *req)

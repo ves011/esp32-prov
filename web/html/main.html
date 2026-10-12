@@ -28,8 +28,16 @@ html.wait, html.wait * { cursor: wait !important; }
 </head>
 <body onLoad="pageload()">
 <div id="Partitions" style="position: relative;">
-	<div id="devinfo">
+	<div id="devinfo" style = "float: left; padding: 10px;">
 		<table>
+			<tr>
+				<td><b>Device ID</b></td>
+				<td id="dev_id"></td>
+			</tr>
+			<tr>
+				<td><b>AP SSID</b></td>
+				<td id="ap_ssid"></td>
+			</tr>
 			<tr>
 				<td><b>AP IP</b></td>
 				<td id="ap_ip">192.168.4.1</td>

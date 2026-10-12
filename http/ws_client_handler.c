@@ -22,9 +22,11 @@
 #include "ws_client_handler.h"
 #include "../handlers/nvsop.h"
 //#include "lwip/netif.h"
+#include "project_specific.h"
 #include "common_defines.h"
 #include "part_editor.h"
 #include "protocoldef.h"
+#include "utils.h"
 
 static char *TAG = "WS_CLIENT";
 QueueHandle_t ws_msg_queue;
@@ -477,6 +479,26 @@ static void handle_devinfo(app_proto_t *msg)
 		}
 	else if(strcmp(msg->params[0], PAR_WIFI) == 0)
 		check_wifi_state();
+	else if(strcmp(msg->params[0], PAR_DEVID) == 0)
+		{
+		char dname[64];
+		snprintf(dname, sizeof(dname), "%s%02d", dev_conf.dev_name, dev_conf.dev_id);
+		msg->params[1] = dname;
+		if(!build_app_proto((uint8_t *)ws_buf, MAX_LEN_PROTO_MSG, msg, &ws_buf_len))
+			send_ws_txtframe(ws_buf);
+		}
+	else if(strcmp(msg->params[0], PAR_APSSID) == 0)
+		{
+		char dname[64];
+		wifi_config_t conf;
+		int err = esp_wifi_get_config(WIFI_IF_AP, &conf);
+		if(err == ESP_OK)
+		strncpy(dname, (char *)conf.ap.ssid, conf.ap.ssid_len);
+		dname[conf.ap.ssid_len] = 0;
+		msg->params[1] = dname;
+		if(!build_app_proto((uint8_t *)ws_buf, MAX_LEN_PROTO_MSG, msg, &ws_buf_len))
+			send_ws_txtframe(ws_buf);
+		}
 	}
 
 static void check_wifi_state()
