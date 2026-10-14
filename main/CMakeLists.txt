@@ -57,9 +57,5 @@ idf_component_register(
 		esp_pm
 		esp_driver_gpio
 		)
-
-	target_compile_options(${COMPONENT_LIB} PRIVATE 
-		$<$<COMPILE_LANGUAGE:C>:-Wall>
-    	$<$<COMPILE_LANGUAGE:C>:-Wextra>
-    	$<$<COMPILE_LANGUAGE:C>:-Werror=implicit-function-declaration>
-		)
+	target_link_libraries(${COMPONENT_LIB} INTERFACE "-ucommon_app_desc")
+	target_compile_definitions(${COMPONENT_LIB} PRIVATE COMMON_REPO_VERSION="${COMMON_REPO_VERSION}")

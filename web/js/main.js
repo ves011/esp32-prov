@@ -182,6 +182,7 @@ async function parseEsp32Firmware(file)
     // esp_app_desc_t magic word
     // uint32_t 0xABCD5432 little endian
     const magic = [0x32, 0x54, 0xCD, 0xAB];
+	const comm_magic = "COMMON";
     // search first ~64kB only
     // descriptor is always near image start
     let pos = -1;
@@ -199,7 +200,7 @@ async function parseEsp32Firmware(file)
 
     if(pos < 0)
 		{
-        const info = {secure_version : 0, version : "N/A", project_name : "N/A", compile_time : "N/A", compile_date : "N/A"}
+        const info = {secure_version : 0, version : "N/A", project_name : "N/A", compile_time : "N/A", compile_date : "N/A", common_version: "N/A"}
 		return info;
 		}
 
@@ -216,6 +217,7 @@ async function parseEsp32Firmware(file)
 
     // esp_app_desc_t layout
     // offset relative to magic word
+	// common version struct shall be @pos + sizeof(esp_app_desc_t) ->256
     const info =
         {
         secure_version : new DataView(buf, pos + 4, 4).getUint32(0, true),
@@ -223,8 +225,12 @@ async function parseEsp32Firmware(file)
         project_name : readString(48, 32),
         compile_time : readString(80, 16),
         compile_date : readString(96, 16),
-        idf_version : readString(112, 32)
+        idf_version : readString(112, 32),
         };
+	pos += 256;
+
+	info.common_version =  readString(0, 8) === "COMMON" ? 
+			readString(8, 32) : "N/A";
     return info;
     }
 function pageload()
@@ -245,7 +251,7 @@ function pageload()
 			{
 			const info = await parseEsp32Firmware(e.target.files[0]);
 			document.getElementById("projstr").innerHTML = info.project_name;
-			document.getElementById("verstr").innerHTML = info.version;
+			document.getElementById("verstr").innerHTML = info.version + " / " + info.common_version;
 			document.getElementById("buildstr").innerHTML = info.compile_date + " " + info.compile_time;
 			console.log(info);
 			}

@@ -23,6 +23,7 @@ static const char *TAG = "OTA-main";
 #define CONFIG_EXAMPLE_ENABLE_HTTPS_USER_CALLBACK	1
 
 int restart_in_progress;
+esp_app_desc_t bpart_desc;
 
 static void initialize_nvs(void)
 	{

@@ -22,6 +22,7 @@
 #include "esp_partition.h"
 #include "esp_image_format.h"
 #include "project_specific.h"
+#include "common_defines.h"
 #include "cmd_wifi.h"
 #include "utils.h"
 #include "file_server.h"
@@ -33,7 +34,7 @@ static void insert_part_options(httpd_req_t *req);
 int npart;
 ptable_t pTable[MAX_UPDPART];
 
-
+static esp_err_t read_common_app_desc(const esp_partition_t *partition, common_app_desc_t *out);
 esp_err_t part_get_handler(const uint8_t *start, const uint8_t *end, httpd_req_t *req)
 	{
 	char *pchar = NULL, *last_pchar;
@@ -76,7 +77,8 @@ esp_err_t part_get_handler(const uint8_t *start, const uint8_t *end, httpd_req_t
 
 void enum_partitions(httpd_req_t *req)
 	{
-	char btmp[80], cversion[32], dtime[40], projname[40];
+	char btmp[256], cversion[32], comm_version[32], dtime[40], projname[40];
+	common_app_desc_t capd;
 	char part_chunk[1024];
 	bool runp, upd;
 	esp_app_desc_t pdesc;
@@ -107,7 +109,12 @@ void enum_partitions(httpd_req_t *req)
 				strcpy(cversion, "N/A");
 				strcpy(dtime, "N/A");
 				}
-				
+			
+			ret = read_common_app_desc(np, &capd);
+			if(ret == ESP_OK)
+				strcpy(comm_version, capd.common_version);
+			else
+				strcpy(comm_version, "N/A");
 			ESP_LOGI(TAG, "part entry: %s %d %d %x %x", np->label, np->type, np->subtype, np->address, np->size);
 			
 			size_t phys_offs = spi_flash_cache2phys(enum_partitions);
@@ -202,7 +209,10 @@ void enum_partitions(httpd_req_t *req)
 			sprintf(btmp, "<td style=\"text-align:left;\">%s</td>\n", projname);
 			strlcat(part_chunk, btmp, sizeof(part_chunk));
 			
-			sprintf(btmp, "<td style=\"text-align:left;\">%s</td>\n", cversion);
+			if(strcmp(cversion, "N/A") == 0)
+				strcpy(btmp, "<td style=\"text-align:left;\"> - </td>\n");
+			else
+				sprintf(btmp, "<td style=\"text-align:left;\">%s<br>%s</td>\n", cversion, comm_version);
 			strlcat(part_chunk, btmp, sizeof(part_chunk));
 			
 			sprintf(btmp, "<td style=\"text-align:left;\">%s</td></tr>\n", dtime);
@@ -453,4 +463,28 @@ esp_err_t dump_get_handler(const uint8_t *start, const uint8_t *end, httpd_req_t
     if(ret == ESP_OK)
     	httpd_resp_send_chunk(req, NULL, 0);
     return ESP_OK;
+	}
+
+static esp_err_t read_common_app_desc(const esp_partition_t *partition, common_app_desc_t *out)
+	{
+    if (partition == NULL || out == NULL)
+        return ESP_ERR_INVALID_ARG;
+
+    const size_t offset =
+        sizeof(esp_image_header_t) +
+        sizeof(esp_image_segment_header_t) +
+        sizeof(esp_app_desc_t);
+
+    if (offset + sizeof(*out) > partition->size)
+        return ESP_ERR_INVALID_SIZE;
+
+    int ret = esp_partition_read(partition, offset, out, sizeof(*out));
+	if(ret == ESP_OK)
+		{
+		if(strcmp(out->magic, COMMON_APP_DESC_MAGIC) == 0)
+			ret = ESP_OK;
+		else
+			ret = ESP_FAIL;
+		}
+	return ret;
 	}
