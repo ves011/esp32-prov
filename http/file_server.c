@@ -28,6 +28,7 @@
 #include "nvs_editor.h"
 #include "nvsop.h"
 #include "spiffsop.h"
+#include "crash_handler.h"
 #include "part_editor.h"
 
 /* Max length a file path can have on storage */
@@ -249,6 +250,11 @@ static esp_err_t ws_on_connect(httpd_req_t *req)
     if(!build_app_proto(msg.payload.binpayload, MAX_LEN_PROTO_MSG, &msgproto, &msg.len))
 		xQueueSend(ws_msg_queue, &msg, 0);
 
+	msgproto.params[0] = PAR_CRASHINFO;
+    if(g_crash->crash_type > 0)msgproto.params[1] = "1";
+	else msgproto.params[1] = "0";
+    if(!build_app_proto(msg.payload.binpayload, MAX_LEN_PROTO_MSG, &msgproto, &msg.len))
+		xQueueSend(ws_msg_queue, &msg, 0);
     return ESP_OK;
 	}
 esp_err_t ws_handler(httpd_req_t *req)

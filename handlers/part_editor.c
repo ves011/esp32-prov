@@ -27,10 +27,12 @@
 #include "utils.h"
 #include "file_server.h"
 #include "ws_client_handler.h"
+#include "crash_handler.h"
 
 static const char *TAG = "handler";
 static void enum_partitions(httpd_req_t *req);
 static void insert_part_options(httpd_req_t *req);
+static void insert_crash_info(httpd_req_t *req);
 int npart;
 ptable_t pTable[MAX_UPDPART];
 
@@ -63,6 +65,14 @@ esp_err_t part_get_handler(const uint8_t *start, const uint8_t *end, httpd_req_t
 			insert_part_options(req);
 			pchar += strlen(INSERTOPTPART);
 			last_pchar = pchar;
+			pchar = strstr(last_pchar, INSERTCRASHINFO);
+			if(pchar)
+				{
+				httpd_resp_send_chunk(req, last_pchar, pchar - last_pchar);
+				pchar += strlen(INSERTCRASHINFO);
+				insert_crash_info(req);
+				last_pchar = pchar;
+				}
 			}
 		}
 	
@@ -71,7 +81,7 @@ esp_err_t part_get_handler(const uint8_t *start, const uint8_t *end, httpd_req_t
 	
 	//end of page
 	httpd_resp_send_chunk(req, NULL, 0);
-		
+
     return ESP_OK;
 	}
 
@@ -224,6 +234,57 @@ void enum_partitions(httpd_req_t *req)
     	}
     esp_partition_iterator_release(pit);
 	}
+static void insert_crash_info(httpd_req_t *req)
+	{
+	char part_chunk[1024];
+	strcpy(part_chunk, "<table id = \"crashTable\" style=\"font-size: 12px; display:none;\">");
+	httpd_resp_sendstr_chunk(req, part_chunk);
+	if(g_crash->magic == CRASH_MAGIC && g_crash->crash_type > 0)
+		{
+		char strtime[32];
+		struct tm timeinfo;
+		time_t now = g_crash->crash_time;
+		localtime_r(&now, &timeinfo);
+		strftime(strtime, sizeof(strtime), "%Y-%m-%d/%H:%M", &timeinfo);
+		//strcpy(part_chunk, "<td></td><td><button id=\"cci\" onclick=\"clear_crash_info()\">Clear</button></td></tr>");
+		//httpd_resp_sendstr_chunk(req, part_chunk);
+		sprintf(part_chunk, "<tr><td>crash time :</td><td colspan=\"2\">%s</td></tr>", strtime);
+		httpd_resp_sendstr_chunk(req, part_chunk);
+		sprintf(part_chunk, "<tr><td>crash HB count (10sec) :</td><td colspan=\"2\">%lu</td></tr>", g_crash->crash_hb);
+		httpd_resp_sendstr_chunk(req, part_chunk);
+		sprintf(part_chunk, "<tr><td>reset reason :</td><td colspan=\"2\">%d</td></tr>", g_crash->reset_reason);
+		httpd_resp_sendstr_chunk(req, part_chunk);
+		sprintf(part_chunk, "<tr><td>err :</td><td colspan=\"2\">%d</td></tr>", g_crash->err);
+		httpd_resp_sendstr_chunk(req, part_chunk);
+		sprintf(part_chunk, "<tr><td>crash type :</td><td colspan=\"2\">%d</td></tr>", g_crash->crash_type);
+		httpd_resp_sendstr_chunk(req, part_chunk);
+		sprintf(part_chunk, "<tr><td>line :</td><td colspan=\"2\">%lu</td></tr>", g_crash->line);
+		httpd_resp_sendstr_chunk(req, part_chunk);
+		sprintf(part_chunk, "<tr><td>file :</td><td colspan=\"2\">%s</td></tr>", g_crash->file);
+		httpd_resp_sendstr_chunk(req, part_chunk);
+		sprintf(part_chunk, "<tr><td>function :</td><td colspan=\"2\">%s</td></tr>", g_crash->func);
+		httpd_resp_sendstr_chunk(req, part_chunk);
+		sprintf(part_chunk, "<tr><td>task :</td><td colspan=\"2\">%s</td></tr>", g_crash->task);
+		httpd_resp_sendstr_chunk(req, part_chunk);
+		//sprintf(part_chunk, "<tr><td>pannic address :</td><td colspan=\"2\">0x%l08X</td></tr>", g_crash->panic_addr);
+		sprintf(part_chunk, "<tr><td>pannic address :</td><td colspan=\"2\">0x%08X</td></tr>", g_crash->panic_addr);
+		httpd_resp_sendstr_chunk(req, part_chunk);
+		sprintf(part_chunk, "<tr><td>panic exception :</td><td colspan=\"2\">%u</td></tr>", g_crash->panic_exception);
+		httpd_resp_sendstr_chunk(req, part_chunk);
+		sprintf(part_chunk, "<tr><td>panic core :</td><td colspan=\"2\">%lu</td></tr>", g_crash->panic_core);
+		httpd_resp_sendstr_chunk(req, part_chunk);
+		sprintf(part_chunk, "<tr><td>panic pseudo cause :</td><td colspan=\"2\">%lu</td></tr>", g_crash->panic_pseudo_excause);
+		httpd_resp_sendstr_chunk(req, part_chunk);
+		sprintf(part_chunk, "<tr><td>panic reason :</td><td colspan=\"2\">%s</td></tr>", g_crash->panic_reason);
+		httpd_resp_sendstr_chunk(req, part_chunk);
+		sprintf(part_chunk, "<tr><td>panic description :</td><td colspan=\"2\">%s</td></tr>", g_crash->panic_description);
+		httpd_resp_sendstr_chunk(req, part_chunk);
+		
+		strcpy(part_chunk, "</table>");
+		httpd_resp_sendstr_chunk(req, part_chunk);
+		}
+
+	}	
 void insert_part_options(httpd_req_t *req)
 	{
 	char opt_chunk[100];

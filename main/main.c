@@ -34,7 +34,8 @@ static void initialize_nvs(void)
 	
 void app_main(void)
 	{
-	getCrashInfo();
+	init_crash_info(false);
+	logCrashInfo();
 	initialize_nvs();
 	get_nvs_conf();
 	initialise_wifi(false);

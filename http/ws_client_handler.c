@@ -27,6 +27,7 @@
 #include "part_editor.h"
 #include "protocoldef.h"
 #include "utils.h"
+#include "crash_handler.h"
 
 static char *TAG = "WS_CLIENT";
 QueueHandle_t ws_msg_queue;
@@ -46,6 +47,7 @@ static void handle_delete_ns(app_proto_t *msg);
 static void handle_delete_key(app_proto_t *msg);
 static void handle_devinfo(app_proto_t *msg);
 static void handle_synctime(app_proto_t *msg);
+static void handle_clearcrash(app_proto_t *msg);
 static void check_wifi_state();
 
 static const cmd_entry_t cmd_table[] = {
@@ -61,6 +63,7 @@ static const cmd_entry_t cmd_table[] = {
     { CMD_DELETEKEY,      	handle_delete_key },
     { URC_DEVINFO,      	handle_devinfo },
     { CMD_SYNCTIME,      	handle_synctime },
+	{ CMD_CLEARCRASHINFO,   handle_clearcrash },
 	};
 #define CMD_TABLE_SIZE sizeof(cmd_table) / sizeof(cmd_table[0])
 
@@ -384,6 +387,10 @@ static void handle_reboot_req(app_proto_t *msg)
 		send_ws_txtframe(ws_buf);
 	}	
 
+static void handle_clearcrash(app_proto_t *msg)
+	{
+	init_crash_info(true);
+	}
 
 static void dispatch_command(app_proto_t *msg)
 	{
@@ -495,6 +502,17 @@ static void handle_devinfo(app_proto_t *msg)
 		if(err == ESP_OK)
 		strncpy(dname, (char *)conf.ap.ssid, conf.ap.ssid_len);
 		dname[conf.ap.ssid_len] = 0;
+		msg->params[1] = dname;
+		if(!build_app_proto((uint8_t *)ws_buf, MAX_LEN_PROTO_MSG, msg, &ws_buf_len))
+			send_ws_txtframe(ws_buf);
+		}
+	else if(strcmp(msg->params[0], PAR_CRASHINFO) == 0)
+		{
+		char dname[4];
+		if(g_crash->crash_type > 0)
+			strcpy(dname, "1");
+		else
+			strcpy(dname, "0");
 		msg->params[1] = dname;
 		if(!build_app_proto((uint8_t *)ws_buf, MAX_LEN_PROTO_MSG, msg, &ws_buf_len))
 			send_ws_txtframe(ws_buf);

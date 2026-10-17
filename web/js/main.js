@@ -109,6 +109,21 @@ function ws_receive(msg)
 			document.getElementById("dev_id").innerHTML = parsed.msg.params[1];
 		if(parsed.msg.params[0] == PAR_APSSID)
 			document.getElementById("ap_ssid").innerHTML = parsed.msg.params[1];
+		if(parsed.msg.params[0] == PAR_CRASHINFO)
+			{
+			if(parsed.msg.params[1] == "1")
+				{
+				document.getElementById("crash_available").style.display = "none";
+				document.getElementById("clear_ci").style.display = "";
+				document.getElementById("crashTable").style.display = "table";
+				}
+			else
+				{
+				document.getElementById("crash_available").style.display = "";
+				document.getElementById("clear_ci").style.display = "none";
+				document.getElementById("crashTable").style.display = "none";
+				}
+			}
 		}
 	}
 function selFile(event)
@@ -169,6 +184,15 @@ function syncTime()
 	ws_send(ws_string);
 	}
 
+function clear_crash_info()
+	{
+	var msg = createMessage(CMD_CLEARCRASHINFO, [], payload = null);
+	var ws_string = buildAppProto(msg);
+	ws_send(ws_string);
+	document.getElementById("crash_available").style.display = "";
+	document.getElementById("clear_ci").style.display = "none";
+	document.getElementById("crashTable").style.display = "none";
+	}
 // --------------------------------------------------
 // Parse ESP-IDF esp_app_desc_t from firmware image
 // Works directly in browser
@@ -233,6 +257,7 @@ async function parseEsp32Firmware(file)
 			readString(8, 32) : "N/A";
     return info;
     }
+
 function pageload()
     {
     const wsUri = window.location.origin + "/ws";

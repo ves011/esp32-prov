@@ -14,6 +14,7 @@
 #define FILE_PATH_MAX (ESP_VFS_PATH_MAX + CONFIG_SPIFFS_OBJ_NAME_LEN)
 #define INSERTPARTITIONS	"<tr><td>insPart</td></tr>"
 #define INSERTOPTPART		"<option value=\"1\">insertOptions</option>"
+#define INSERTCRASHINFO		"crashInfo"
 #define MAX_UPDPART			20
 //#define MAX_BLOB_SIZE		SCRATCH_BUFSIZE
 

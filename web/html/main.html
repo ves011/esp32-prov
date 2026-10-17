@@ -147,4 +147,15 @@ html.wait, html.wait * { cursor: wait !important; }
 		<tr><td><button id="reboot" onclick="esp_reboot()">Reboot</button></td></tr>
   	</table>
 </div>
+<div id="crash_info" style="position: relative;">
+<table style="font-size: 12px; display:table;">
+	<tr><td colspan="3">-------------------------------------------------------------------------------</td></tr>
+	<tr>
+		<td><b>Last crash info</b></td>
+		<td id="crash_available" style="display: none;"><b>N/A</b></td>
+		<td><button id="clear_ci" style="display: none;" onclick="clear_crash_info()">Clear</button></td>
+	</tr>
+</table>
+crashInfo
+</div>
 </body></html>
