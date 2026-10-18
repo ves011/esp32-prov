@@ -24,7 +24,7 @@
   "clangd.arguments": [
     "--background-index",
     "--query-driver=**",
-    "--compile-commands-dir=c:\\dev\\esp32\\esp32-prov/build_esp32s3"
+    "--compile-commands-dir=c:\\dev\\esp32\\esp32-prov/build_esp32c3"
   ],
   "idf.customExtraVars": {
     "OPENOCD_SCRIPTS": "C:\\Users\\viore\\.espressif\\tools\\openocd-esp32\\v0.10.0-esp32-20190708/openocd-esp32/share/openocd/scripts",
