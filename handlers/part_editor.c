@@ -279,12 +279,21 @@ static void insert_crash_info(httpd_req_t *req)
 		httpd_resp_sendstr_chunk(req, part_chunk);
 		sprintf(part_chunk, "<tr><td>panic description :</td><td colspan=\"2\">%s</td></tr>", g_crash->panic_description);
 		httpd_resp_sendstr_chunk(req, part_chunk);
-		
-		strcpy(part_chunk, "</table>");
-		httpd_resp_sendstr_chunk(req, part_chunk);
+		if(!g_crash->bt_corrupted && g_crash->bt_count > 0)
+			{
+			strcpy(part_chunk, "<tr><td colspan=\"3\">back trace :></td></tr>");
+			httpd_resp_sendstr_chunk(req, part_chunk);
+			for(int i = 0; i < g_crash->bt_count; i++)
+				{
+				sprintf(part_chunk, "<tr><td> </td><td colspan=\"2\">0X%08lX</td></tr>", g_crash->bt[i]);
+				httpd_resp_sendstr_chunk(req, part_chunk);
+				}
+			}
 		}
-
-	}	
+	strcpy(part_chunk, "</table>");
+	httpd_resp_sendstr_chunk(req, part_chunk);
+	}
+	
 void insert_part_options(httpd_req_t *req)
 	{
 	char opt_chunk[100];
